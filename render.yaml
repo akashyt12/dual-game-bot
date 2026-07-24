@@ -1,0 +1,9 @@
+services:
+  - type: worker
+    name: dual-game-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"

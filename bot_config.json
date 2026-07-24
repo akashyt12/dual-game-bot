@@ -1,0 +1,10 @@
+{
+  "username": "",
+  "password": "",
+  "game": "1",
+  "total_bet": 2,
+  "multiplier": 2.0,
+  "confidence": 55,
+  "auto_restart": true,
+  "max_restarts": 10
+}
