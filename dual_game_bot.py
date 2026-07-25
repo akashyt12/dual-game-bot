@@ -1558,10 +1558,8 @@ async def run_betting_51(user_id, chat_id, user_data):
             open_issue = checker.fetch_open_issue(type_id)
             if open_issue:
                 try:
-                    bs_map = {"BIG": "5", "SMALL": "6"}
-                    co_map = {"RED": "1", "GREEN": "2", "VIOLET": "3"}
-                    bs_content = bs_map.get(bs_pred, "5")
-                    color_content = co_map.get(co_pred, "1")
+                    bs_content = f"BigSmall_{bs_pred.capitalize()}"
+                    color_content = f"Color_{co_pred.capitalize()}"
                     results = checker.place_dual_bet(open_issue, type_id, lv["bs_bet"], lv["color_bet"], bs_content, color_content)
                     bs_data = results.get("bs", {})
                     color_data = results.get("color", {})
