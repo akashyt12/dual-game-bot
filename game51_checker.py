@@ -563,38 +563,26 @@ class Game51AccountChecker:
                 "language": "en",
                 "random": random.randint(100000000000, 999999999999),
             }
-            sign_params = {}
-            for key in sorted(payload.keys()):
-                val = payload[key]
-                if val is None or val == "" or key in ("signature",):
-                    continue
-                sign_params[key] = val
-            sign_str = json.dumps(sign_params, separators=(",", ":"), sort_keys=True)
-            payload["signature"] = hashlib.md5(sign_str.encode()).hexdigest().upper()
-            payload["timestamp"] = int(time.time())
+            signed = self.generate_ar_signature_payload(payload)
 
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
-                "Content-Type": "application/json;charset=UTF-8",
-                "Authorization": f"Bearer {ar_token}",
-                "Origin": lottery_api,
-                "Referer": f"{lottery_api}/",
-            }
             try:
-                import urllib3 as _urllib3
-                _urllib3.disable_warnings(_urllib3.exceptions.InsecureRequestWarning)
-                resp = requests.post(
+                self.update_headers()
+                self.client.headers["Authorization"] = f"Bearer {ar_token}"
+                self.client.headers["Origin"] = lottery_api
+                self.client.headers["Referer"] = f"{lottery_api}/"
+                resp = self.client.post(
                     f"{lottery_api}/api/Lottery/WinGoBet",
-                    json=payload, headers=headers, timeout=10, verify=False,
+                    json=signed, timeout=10, allow_redirects=True, verify=False,
                 )
                 if resp.status_code == 401:
                     lottery = self.fetch_lottery_token(game_code, force=True)
                     ar_token = lottery["token"]
                     lottery_api = lottery["lottery_api"]
-                    headers["Authorization"] = f"Bearer {ar_token}"
-                    resp = requests.post(
+                    self.client.headers["Authorization"] = f"Bearer {ar_token}"
+                    signed = self.generate_ar_signature_payload(payload)
+                    resp = self.client.post(
                         f"{lottery_api}/api/Lottery/WinGoBet",
-                        json=payload, headers=headers, timeout=10, verify=False,
+                        json=signed, timeout=10, allow_redirects=True, verify=False,
                     )
                 data = self.parse_json_response(resp, "WinGoBet")
                 results[label] = data
