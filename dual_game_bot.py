@@ -142,6 +142,25 @@ async def send_or_edit(chat_id, user_id, text, reply_markup=None, parse_mode="HT
     _last_bot_msg[user_id] = msg.message_id
     return msg
 
+async def send_section(chat_id, user_id, image_name, text, reply_markup=None):
+    old_msg_id = _last_bot_msg.get(user_id)
+    if old_msg_id:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
+        except Exception:
+            pass
+    image = img(image_name)
+    try:
+        if image:
+            msg = await bot.send_photo(chat_id=chat_id, photo=FSInputFile(image),
+                caption=text, parse_mode="HTML", reply_markup=reply_markup)
+        else:
+            msg = await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
+    except Exception:
+        msg = await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="HTML")
+    _last_bot_msg[user_id] = msg.message_id
+    return msg
+
 def has_access(user_data):
     if user_data.get("is_admin"):
         return True
@@ -353,26 +372,18 @@ async def start_command(message: Message):
         return
 
     pts = user_data.get("points", 0)
-    image = img("profit.jpg")
+    image = img("main_menu.png")
     text = box(f"\U0001F3B0 {BOT_VERSION}",
         f"Welcome <b>{name}</b>!\n\n"
         f"<b>Points:</b> <code>{pts}</code>\n\n"
-        "Choose Your Platform:\n\n"
-        "\U0001F3B0 <b>JAI CLUB</b> - WinGo 30S / 1M\n"
-        "\U0001F3AF <b>51GAME</b> - WinGo 30S / 1M / 3M / 5M\n\n"
-        "Features:\n"
-        "- Auto Prediction\n"
-        "- Dual Bet System\n"
-        "- Level Staking\n"
-        "- Profit Target\n\n"
-        "<i>Select a platform:</i>"
+        "Choose an option:"
     ) + footer()
     try:
         if image:
             await bot.send_photo(chat_id=message.chat.id, photo=FSInputFile(image),
-                caption=text, parse_mode="HTML", reply_markup=platform_select_kb())
+                caption=text, parse_mode="HTML", reply_markup=main_menu_kb())
         else:
-            await message.answer(text=text, reply_markup=platform_select_kb())
+            await message.answer(text=text, reply_markup=main_menu_kb())
     except Exception as e:
         logger.error(f"start error: {e}")
         await message.answer(text=text, reply_markup=platform_select_kb())
@@ -602,21 +613,17 @@ async def handle_callbacks(callback: CallbackQuery):
         ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
         refs = len(user_data.get("referrals", []))
         pts = user_data.get("points", 0)
+        txt = box("\U0001F4DD REFERRALS",
+            f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
+            f"<b>Referrals:</b> <code>{refs}</code>\n"
+            f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
+            f"<i>Share to earn {REFERRAL_POINTS} pts per referral</i>"
+        ) + footer()
         try:
-            await callback.message.edit_text(
-                text=box("\U0001F4DD REFERRALS",
-                    f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
-                    f"<b>Referrals:</b> <code>{refs}</code>\n"
-                    f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
-                    f"<i>Share to earn {REFERRAL_POINTS} pts per referral</i>"
-                ) + footer(), reply_markup=back_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(
-                text=box("\U0001F4DD REFERRALS",
-                    f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
-                    f"<b>Referrals:</b> <code>{refs}</code>\n"
-                    f"<b>Points:</b> <code>{pts}</code>"
-                ) + footer(), reply_markup=back_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "referrals.png", txt, reply_markup=back_kb())
         await callback.answer()
         return
 
@@ -633,26 +640,21 @@ async def handle_callbacks(callback: CallbackQuery):
         if user_id in _active_bots:
             total_won = _active_bots[user_id].get("total_won", 0)
             total_lost = _active_bots[user_id].get("total_lost", 0)
+        txt = box("\U0001F464 USER INFO",
+            f"<b>Name:</b> {name}\n"
+            f"<b>Username:</b> @{uname}\n"
+            f"<b>Unique ID:</b> <code>{short_id}</code>\n"
+            f"<b>User ID:</b> <code>{user_id}</code>\n\n"
+            f"<b>Points:</b> <code>{pts}</code>\n"
+            f"<b>Referrals:</b> <code>{refs}</code>\n"
+            f"<b>Total Won:</b> <code>{total_won:.2f}</code>\n"
+            f"<b>Total Lost:</b> <code>{total_lost:.2f}</code>"
+        ) + footer()
         try:
-            await callback.message.edit_text(
-                text=box("\U0001F464 USER INFO",
-                    f"<b>Name:</b> {name}\n"
-                    f"<b>Username:</b> @{uname}\n"
-                    f"<b>Unique ID:</b> <code>{short_id}</code>\n"
-                    f"<b>User ID:</b> <code>{user_id}</code>\n\n"
-                    f"<b>Points:</b> <code>{pts}</code>\n"
-                    f"<b>Referrals:</b> <code>{refs}</code>\n"
-                    f"<b>Total Won:</b> <code>{total_won:.2f}</code>\n"
-                    f"<b>Total Lost:</b> <code>{total_lost:.2f}</code>"
-                ) + footer(), reply_markup=back_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(
-                text=box("\U0001F464 USER INFO",
-                    f"<b>Name:</b> {name}\n<b>Username:</b> @{uname}\n"
-                    f"<b>Unique ID:</b> <code>{short_id}</code>\n"
-                    f"<b>Points:</b> <code>{pts}</code>\n"
-                    f"<b>Referrals:</b> <code>{refs}</code>"
-                ) + footer(), reply_markup=back_kb())
+            pass
+        await send_or_edit(callback.message.chat.id, user_id, txt, reply_markup=back_kb())
         await callback.answer()
         return
 
@@ -805,6 +807,21 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer()
         return
 
+    if data == "admin_play":
+        if not admin:
+            return
+        user_data["platform"] = "jai"
+        update_user(user_id, user_data)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await send_section(callback.message.chat.id, user_id, "games.jpg",
+            box(f"\U0001F3B0 {BOT_VERSION}", "Select platform:") + footer(),
+            reply_markup=platform_select_kb())
+        await callback.answer()
+        return
+
     # ---- POINT CHECK (only block at 0) ----
     if not admin and points_finished(user_data):
         if user_id in _active_bots:
@@ -814,7 +831,7 @@ async def handle_callbacks(callback: CallbackQuery):
         except Exception:
             pass
         ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
-        await callback.message.answer(
+        await send_section(callback.message.chat.id, user_id, "referrals.png",
             text=box("\U0001F4B0 NO POINTS LEFT",
                 "Your points are finished!\n\n"
                 "Get referrals to earn more points.\n\n"
@@ -828,25 +845,21 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "back_menu":
         try:
-            await callback.message.edit_text(text=box("\U0001F4CB MAIN MENU", "Choose an option:") + footer(), reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
-            await callback.message.answer(text=box("\U0001F4CB MAIN MENU", "Choose an option:") + footer(), reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\U0001F4CB MAIN MENU", "Choose an option:") + footer(), reply_markup=main_menu_kb())
         await callback.answer()
         return
 
     if data == "switch_platform":
         try:
-            await callback.message.edit_text(text=box("\U0001F504 SWITCH", "Select platform:") + footer(), reply_markup=platform_select_kb())
+            await callback.message.delete()
         except Exception:
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
-            await callback.message.answer(text=box("\U0001F504 SWITCH", "Select platform:") + footer(), reply_markup=platform_select_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "switch.jpg",
+            box("\U0001F504 SWITCH", "Select platform:") + footer(), reply_markup=platform_select_kb())
         await callback.answer()
         return
 
@@ -895,8 +908,12 @@ async def handle_callbacks(callback: CallbackQuery):
                     text=box("\U0001F4B0 SET BALANCE", "Enter total balance:\n<code>5000</code>") + footer(),
                     reply_markup=back_kb())
             except Exception:
-                await callback.message.answer(
-                    text=box("\U0001F4B0 SET BALANCE", "Enter total balance:\n<code>5000</code>") + footer(),
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                await send_or_edit(callback.message.chat.id, user_id,
+                    box("\U0001F4B0 SET BALANCE", "Enter total balance:\n<code>5000</code>") + footer(),
                     reply_markup=back_kb())
             await callback.answer()
             return
@@ -906,13 +923,11 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer("\U0001F680 Starting!")
         pn = "JAI CLUB" if platform == "jai" else "51GAME"
         try:
-            await callback.message.edit_text(
-                text=box("\u2705 STARTED", f"<b>{pn}</b>\n\n/send /stop to stop") + footer(),
-                reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(
-                text=box("\u2705 STARTED", f"<b>{pn}</b>\n\n/send /stop to stop") + footer(),
-                reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\u2705 STARTED", f"<b>{pn}</b>\n\n/send /stop to stop") + footer(), reply_markup=main_menu_kb())
         asyncio.create_task(run_betting(user_id, callback.message.chat.id, user_data))
         return
 
@@ -929,9 +944,10 @@ async def handle_callbacks(callback: CallbackQuery):
             f"<b>Points:</b> <code>{pts}</code>"
         ) + footer()
         try:
-            await callback.message.edit_text(text=txt, reply_markup=back_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=txt, reply_markup=back_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "status.jpg", txt, reply_markup=back_kb())
         await callback.answer()
         return
 
@@ -969,19 +985,15 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "game_select":
         if platform == "jai":
-            txt = box("\U0001F3AE GAMES", "Select game type:") + footer()
             kb = game_menu_kb_jai()
         else:
-            txt = box("\U0001F3AE GAMES", "Select game type:") + footer()
             kb = game_menu_kb_51()
         try:
-            await callback.message.edit_text(text=txt, reply_markup=kb)
+            await callback.message.delete()
         except Exception:
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
-            await callback.message.answer(text=txt, reply_markup=kb)
+            pass
+        await send_section(callback.message.chat.id, user_id, "games.jpg",
+            box("\U0001F3AE GAMES", "Select game type:") + footer(), reply_markup=kb)
         await callback.answer()
         return
 
@@ -990,9 +1002,11 @@ async def handle_callbacks(callback: CallbackQuery):
         user_data["game"] = game
         update_user(user_id, user_data)
         try:
-            await callback.message.edit_text(text=box("\u2705 GAME SET", f"<b>{game}</b>") + footer(), reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\u2705 GAME SET", f"<b>{game}</b>") + footer(), reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\u2705 GAME SET", f"<b>{game}</b>") + footer(), reply_markup=main_menu_kb())
         await callback.answer(f"Game: {game}")
         return
 
@@ -1003,17 +1017,21 @@ async def handle_callbacks(callback: CallbackQuery):
         update_user(user_id, user_data)
         nm = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
         try:
-            await callback.message.edit_text(text=box("\u2705 GAME SET", f"<b>WinGo {nm.get(tid,'30S')}</b>") + footer(), reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\u2705 GAME SET", f"<b>WinGo {nm.get(tid,'30S')}</b>") + footer(), reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\u2705 GAME SET", f"<b>WinGo {nm.get(tid,'30S')}</b>") + footer(), reply_markup=main_menu_kb())
         await callback.answer(f"WinGo {nm.get(tid,'30S')}")
         return
 
     if data == "stop_bot":
         try:
-            await callback.message.edit_text(text=box("\U0001F6D1 STOP?", "Confirm:") + footer(), reply_markup=stop_confirm_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\U0001F6D1 STOP?", "Confirm:") + footer(), reply_markup=stop_confirm_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "stop.png",
+            box("\U0001F6D1 STOP?", "Confirm:") + footer(), reply_markup=stop_confirm_kb())
         await callback.answer()
         return
 
@@ -1021,25 +1039,31 @@ async def handle_callbacks(callback: CallbackQuery):
         if user_id in _active_bots:
             _active_bots[user_id]["running"] = False
         try:
-            await callback.message.edit_text(text=box("\U0001F6D1 STOPPED", "Use /start to restart.") + footer(), reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\U0001F6D1 STOPPED", "Use /start to restart.") + footer(), reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\U0001F6D1 STOPPED", "Use /start to restart.") + footer(), reply_markup=main_menu_kb())
         await callback.answer("\U0001F6D1 Stopped!")
         return
 
     if data == "cancel_stop":
         try:
-            await callback.message.edit_text(text=box("\u2705 RUNNING", "Bot continues.") + footer(), reply_markup=main_menu_kb())
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\u2705 RUNNING", "Bot continues.") + footer(), reply_markup=main_menu_kb())
+            pass
+        await send_section(callback.message.chat.id, user_id, "main_menu.png",
+            box("\u2705 RUNNING", "Bot continues.") + footer(), reply_markup=main_menu_kb())
         await callback.answer("Still running!")
         return
 
     if data == "settings":
         try:
-            await callback.message.edit_text(text=box("\u2699 SETTINGS", "Adjust:") + footer(), reply_markup=settings_kb(user_data))
+            await callback.message.delete()
         except Exception:
-            await callback.message.answer(text=box("\u2699 SETTINGS", "Adjust:") + footer(), reply_markup=settings_kb(user_data))
+            pass
+        await send_section(callback.message.chat.id, user_id, "settings.png",
+            box("\u2699 SETTINGS", "Adjust:") + footer(), reply_markup=settings_kb(user_data))
         await callback.answer()
         return
 
@@ -1050,7 +1074,12 @@ async def handle_callbacks(callback: CallbackQuery):
         try:
             await callback.message.edit_text(text=box("\u2699 SETTINGS", f"<b>Restart:</b> {st}") + footer(), reply_markup=settings_kb(user_data))
         except Exception:
-            pass
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await send_section(callback.message.chat.id, user_id, "settings.png",
+                box("\u2699 SETTINGS", f"<b>Restart:</b> {st}") + footer(), reply_markup=settings_kb(user_data))
         await callback.answer(f"Restart: {st}")
         return
 
@@ -1059,7 +1088,11 @@ async def handle_callbacks(callback: CallbackQuery):
         try:
             await callback.message.edit_text(text=box("\U0001F4B0 SET BET", "Enter bet (min 2):") + footer(), reply_markup=back_kb())
         except Exception:
-            await callback.message.answer(text=box("\U0001F4B0 SET BET", "Enter bet (min 2):") + footer(), reply_markup=back_kb())
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await send_or_edit(callback.message.chat.id, user_id, box("\U0001F4B0 SET BET", "Enter bet (min 2):") + footer(), reply_markup=back_kb())
         await callback.answer()
         return
 
@@ -1068,7 +1101,11 @@ async def handle_callbacks(callback: CallbackQuery):
         try:
             await callback.message.edit_text(text=box("\U0001F4C8 SET MULTIPLIER", "Enter multiplier (min 1.5):") + footer(), reply_markup=back_kb())
         except Exception:
-            await callback.message.answer(text=box("\U0001F4C8 SET MULTIPLIER", "Enter multiplier (min 1.5):") + footer(), reply_markup=back_kb())
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await send_or_edit(callback.message.chat.id, user_id, box("\U0001F4C8 SET MULTIPLIER", "Enter multiplier (min 1.5):") + footer(), reply_markup=back_kb())
         await callback.answer()
         return
 
@@ -1077,7 +1114,11 @@ async def handle_callbacks(callback: CallbackQuery):
         try:
             await callback.message.edit_text(text=box("\U0001F3AF SET TARGET", "Enter target % (5-500):") + footer(), reply_markup=back_kb())
         except Exception:
-            await callback.message.answer(text=box("\U0001F3AF SET TARGET", "Enter target % (5-500):") + footer(), reply_markup=back_kb())
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await send_or_edit(callback.message.chat.id, user_id, box("\U0001F3AF SET TARGET", "Enter target % (5-500):") + footer(), reply_markup=back_kb())
         await callback.answer()
         return
 
