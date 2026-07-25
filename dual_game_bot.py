@@ -1558,17 +1558,23 @@ async def run_betting_51(user_id, chat_id, user_data):
             open_issue = checker.fetch_open_issue(type_id)
             if open_issue:
                 try:
-                    bs_content = f"BigSmall_{bs_pred.capitalize()}"
-                    color_content = f"Color_{co_pred.capitalize()}"
+                    bs_map = {"BIG": "5", "SMALL": "6"}
+                    co_map = {"RED": "1", "GREEN": "2", "VIOLET": "3"}
+                    bs_content = bs_map.get(bs_pred, "5")
+                    color_content = co_map.get(co_pred, "1")
                     results = checker.place_dual_bet(open_issue, type_id, lv["bs_bet"], lv["color_bet"], bs_content, color_content)
-                    bs_ok = "error" not in results.get("bs", {})
-                    color_ok = "error" not in results.get("color", {})
+                    bs_data = results.get("bs", {})
+                    color_data = results.get("color", {})
+                    bs_ok = "error" not in bs_data and bs_data.get("code", -1) == 0
+                    color_ok = "error" not in color_data and color_data.get("code", -1) == 0
                     if bs_ok or color_ok:
                         bot_state["pending"] = {
                             "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
                             "total_bet": lv["total_bet"], "level": lv["level"]
                         }
                         await update_profit_msg(user_id, chat_id, bot_state, "WAITING", f"51GAME {game_name}")
+                    else:
+                        logger.error(f"51GAME Bet rejected: bs={bs_data} color={color_data}")
                 except Exception as e:
                     logger.error(f"51GAME Bet failed: {e}")
             await asyncio.sleep(1)
