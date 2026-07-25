@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-"""
-DUAL GAME BOT - JAI CLUB + 51GAME
-Secure, Multi-User, aiogram 3.15+
-"""
+"""DUAL GAME BOT - JAI CLUB + 51GAME | Admin + Keys + Referrals + Points"""
 
-import os
-import sys
-import json
-import asyncio
-import logging
-import random
-import time
-import hashlib
-import threading
+import os, sys, json, asyncio, logging, random, time, hashlib, threading
 from datetime import datetime
 from pathlib import Path
 from html import escape
@@ -25,71 +14,77 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import (
-    Message, CallbackQuery, InputMediaPhoto,
-    InlineKeyboardButton, InlineKeyboardMarkup,
-    FSInputFile
-)
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
 
 BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
+ADMIN_USERNAME = "lord_x_stylo"
 IMAGES_DIR = Path(__file__).parent / "images"
-
 BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
+KEYS_FILE = BASE_DIR / "keys.json"
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-# ============================================
-# LOGGING
-# ============================================
+MIN_REFERRALS = 3
+REFERRAL_POINTS = 100
+REQUIRED_POINTS = MIN_REFERRALS * REFERRAL_POINTS
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# ============================================
-# THREAD-SAFE USER STORAGE
-# ============================================
 _user_lock = threading.Lock()
 _user_states = {}
 _active_bots = {}
 _profit_messages = {}
 _rate_limits = {}
 
-def _load_users_raw():
+# ============================================
+# STORAGE
+# ============================================
+def _load_json(path):
     try:
-        if USERS_FILE.exists():
-            with open(USERS_FILE, "r", encoding="utf-8") as f:
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except (json.JSONDecodeError, IOError):
-        logger.warning("users.json corrupted, resetting")
+        pass
     return {}
 
-def _save_users_raw(data):
-    tmp = USERS_FILE.with_suffix(".tmp")
+def _save_json(path, data):
+    tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    tmp.replace(USERS_FILE)
+    tmp.replace(path)
 
 def get_user(user_id):
     with _user_lock:
-        users = _load_users_raw()
+        users = _load_json(USERS_FILE)
         return dict(users.get(str(user_id), {}))
 
 def update_user(user_id, data):
     with _user_lock:
-        users = _load_users_raw()
+        users = _load_json(USERS_FILE)
         uid = str(user_id)
         if uid in users:
             users[uid].update(data)
         else:
             users[uid] = data
-        _save_users_raw(users)
+        _save_json(USERS_FILE, users)
 
-# ============================================
-# RATE LIMITER
-# ============================================
+def get_keys():
+    with _user_lock:
+        return _load_json(KEYS_FILE)
+
+def save_keys(data):
+    with _user_lock:
+        _save_json(KEYS_FILE, data)
+
+def is_admin(user):
+    uname = (user.username or "").lower()
+    return uname == ADMIN_USERNAME
+
 def check_rate_limit(user_id, action, cooldown=1.0):
     key = f"{user_id}:{action}"
     now = time.time()
@@ -99,9 +94,25 @@ def check_rate_limit(user_id, action, cooldown=1.0):
     _rate_limits[key] = now
     return True
 
-# ============================================
-# HELPERS
-# ============================================
+def has_access(user_data):
+    if user_data.get("is_admin"):
+        return True
+    if user_data.get("banned"):
+        return False
+    return user_data.get("access_key_valid", False)
+
+def has_enough_points(user_data):
+    if user_data.get("is_admin"):
+        return True
+    return user_data.get("points", 0) >= REQUIRED_POINTS
+
+def deduct_point(user_id):
+    user_data = get_user(user_id)
+    pts = user_data.get("points", 0)
+    if pts > 0:
+        user_data["points"] = pts - 1
+        update_user(user_id, user_data)
+    return user_data.get("points", 0)
 
 def img(name):
     if not name:
@@ -109,716 +120,964 @@ def img(name):
     p = IMAGES_DIR / name
     return str(p) if p.exists() else None
 
-def box(title, body):
-    return (
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"  <b>{title}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{body}"
-    )
-
 def safe_str(val, max_len=200):
-    s = str(val).strip()
-    if len(s) > max_len:
-        s = s[:max_len]
+    s = str(val).strip()[:max_len]
     return escape(s)
+
+def gen_key():
+    parts = [f"{random.randint(0,65535):04X}" for _ in range(4)]
+    return "KEY-" + "-".join(parts)
+
+def box(title, body):
+    return f"{'='*22}\n  <b>{title}</b>\n{'='*22}\n\n{body}"
 
 # ============================================
 # KEYBOARDS
 # ============================================
-
 def platform_select_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="JAI CLUB", callback_data="platform_jai")],
-        [InlineKeyboardButton(text="51GAME", callback_data="platform_51")],
+        [InlineKeyboardButton(text="\U0001F3B0 JAI CLUB", callback_data="platform_jai")],
+        [InlineKeyboardButton(text="\U0001F3AF 51GAME", callback_data="platform_51")],
     ])
 
 def main_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="START", callback_data="start_bot"),
-            InlineKeyboardButton(text="STATUS", callback_data="status"),
-        ],
-        [
-            InlineKeyboardButton(text="PROFIT", callback_data="profit"),
-            InlineKeyboardButton(text="SETTINGS", callback_data="settings"),
-        ],
-        [
-            InlineKeyboardButton(text="GAME", callback_data="game_select"),
-            InlineKeyboardButton(text="STOP", callback_data="stop_bot"),
-        ],
-        [
-            InlineKeyboardButton(text="SWITCH", callback_data="switch_platform"),
-            InlineKeyboardButton(text="HELP", callback_data="help"),
-        ],
+        [InlineKeyboardButton(text="\u25B6 START", callback_data="start_bot"),
+         InlineKeyboardButton(text="\U0001F4CA STATUS", callback_data="status")],
+        [InlineKeyboardButton(text="\U0001F4B0 PROFIT", callback_data="profit"),
+         InlineKeyboardButton(text="\u2699 SETTINGS", callback_data="settings")],
+        [InlineKeyboardButton(text="\U0001F3AF GAME", callback_data="game_select"),
+         InlineKeyboardButton(text="\U0001F6D1 STOP", callback_data="stop_bot")],
+        [InlineKeyboardButton(text="\U0001F504 SWITCH", callback_data="switch_platform"),
+         InlineKeyboardButton(text="\U0001F4DD REFER", callback_data="check_referrals")],
     ])
 
 def back_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="BACK", callback_data="back_menu")]
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")]])
+
+def back_only_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")]])
 
 def game_menu_kb_jai():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="30 SEC", callback_data="game_30s"),
-            InlineKeyboardButton(text="1 MIN", callback_data="game_1m"),
-        ],
-        [InlineKeyboardButton(text="BACK", callback_data="back_menu")]
+        [InlineKeyboardButton(text="\u26A1 30 SEC", callback_data="game_30s"),
+         InlineKeyboardButton(text="\U0001F525 1 MIN", callback_data="game_1m")],
+        [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")]
     ])
 
 def game_menu_kb_51():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="30 SEC", callback_data="game51_30"),
-            InlineKeyboardButton(text="1 MIN", callback_data="game51_1m"),
-        ],
-        [
-            InlineKeyboardButton(text="3 MIN", callback_data="game51_3m"),
-            InlineKeyboardButton(text="5 MIN", callback_data="game51_5m"),
-        ],
-        [InlineKeyboardButton(text="BACK", callback_data="back_menu")]
+        [InlineKeyboardButton(text="\u26A1 30 SEC", callback_data="game51_30"),
+         InlineKeyboardButton(text="\U0001F525 1 MIN", callback_data="game51_1m")],
+        [InlineKeyboardButton(text="\U0001F48E 3 MIN", callback_data="game51_3m"),
+         InlineKeyboardButton(text="\u2B50 5 MIN", callback_data="game51_5m")],
+        [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")]
     ])
 
 def settings_kb(user_data):
     restart = "ON" if user_data.get("auto_restart", True) else "OFF"
     target = user_data.get("profit_target", 20)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"AUTO RESTART: {restart}", callback_data="toggle_restart")],
-        [InlineKeyboardButton(text="SET BET", callback_data="set_bet")],
-        [InlineKeyboardButton(text="SET MULTIPLIER", callback_data="set_multiplier")],
-        [InlineKeyboardButton(text=f"PROFIT TARGET: {target}%", callback_data="set_target")],
-        [InlineKeyboardButton(text="BACK", callback_data="back_menu")],
+        [InlineKeyboardButton(text=f"\U0001F504 RESTART: {restart}", callback_data="toggle_restart")],
+        [InlineKeyboardButton(text="\U0001F4B0 SET BET", callback_data="set_bet")],
+        [InlineKeyboardButton(text="\U0001F4C8 SET MULTIPLIER", callback_data="set_multiplier")],
+        [InlineKeyboardButton(text=f"\U0001F3AF TARGET: {target}%", callback_data="set_target")],
+        [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")],
     ])
 
 def stop_confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="YES STOP", callback_data="confirm_stop"),
-            InlineKeyboardButton(text="NO CANCEL", callback_data="cancel_stop"),
-        ]
+        [InlineKeyboardButton(text="\u2705 YES STOP", callback_data="confirm_stop"),
+         InlineKeyboardButton(text="\u274C NO", callback_data="cancel_stop")]
     ])
 
-def back_only_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="BACK", callback_data="back_menu")]])
+def admin_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\U0001F511 GEN KEY", callback_data="admin_genkey")],
+        [InlineKeyboardButton(text="\U0001F4CA STATS", callback_data="admin_stats"),
+         InlineKeyboardButton(text="\U0001F4CB LIST KEYS", callback_data="admin_listkeys")],
+        [InlineKeyboardButton(text="\U0001F464 ADD POINTS", callback_data="admin_addpts")],
+    ])
+
+def enter_key_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\U0001F511 ENTER ACCESS KEY", callback_data="enter_key")]
+    ])
 
 # ============================================
 # /start COMMAND
 # ============================================
-
 @dp.message(CommandStart())
 async def start_command(message: Message):
     user_id = message.from_user.id
     if not check_rate_limit(user_id, "start", 2):
         return
-    name = safe_str(message.from_user.first_name or "User", 50)
 
-    text = box("DUAL GAME AUTO BOT", (
-        f"Welcome, <b>{name}</b>!\n\n"
+    args = (message.text or "").split()
+    ref_code = None
+    if len(args) > 1 and args[1].startswith("REF_"):
+        try:
+            ref_code = int(args[1].replace("REF_", ""))
+        except ValueError:
+            pass
+
+    user_data = get_user(user_id)
+    name = safe_str(message.from_user.first_name or "User", 50)
+    username = message.from_user.username or ""
+
+    if ref_code and ref_code != user_id and not user_data.get("referred_by"):
+        referrer_data = get_user(ref_code)
+        referrer_data.setdefault("referrals", [])
+        if user_id not in referrer_data["referrals"]:
+            referrer_data["referrals"].append(user_id)
+            referrer_data["points"] = referrer_data.get("points", 0) + REFERRAL_POINTS
+            update_user(ref_code, referrer_data)
+            try:
+                await bot.send_message(ref_code, box("\U0001F389 NEW REFERRAL!",
+                    f"User <b>{name}</b> joined via your link!\n\n"
+                    f"<b>+{REFERRAL_POINTS} points</b> added!\n"
+                    f"Total referrals: <code>{len(referrer_data['referrals'])}</code>\n"
+                    f"Total points: <code>{referrer_data.get('points', 0)}</code>"
+                ))
+            except Exception:
+                pass
+
+    if is_admin(message.from_user):
+        user_data["is_admin"] = True
+        user_data["access_key_valid"] = True
+        user_data["points"] = 999999
+        user_data["name"] = name
+        user_data["username"] = username
+        update_user(user_id, user_data)
+        await message.answer(box("\U0001F451 ADMIN PANEL",
+            f"Welcome Admin <b>{name}</b>!\n\n"
+            "You have full access.\n"
+            "Use /admin for admin panel."
+        ), reply_markup=admin_kb())
+        return
+
+    user_data["name"] = name
+    user_data["username"] = username
+    update_user(user_id, user_data)
+
+    if user_data.get("banned"):
+        await message.answer(box("\U0001F6AB ACCESS DENIED", "You are banned from this bot."))
+        return
+
+    if not user_data.get("access_key_valid"):
+        await message.answer(box("\U0001F511 ACCESS KEY REQUIRED",
+            f"Welcome <b>{name}</b>!\n\n"
+            "You need a valid access key to use this bot.\n\n"
+            "Get a key from the admin or a referrer.\n"
+            "Click below to enter your key:"
+        ), reply_markup=enter_key_kb())
+        return
+
+    if not has_enough_points(user_data):
+        pts = user_data.get("points", 0)
+        refs = len(user_data.get("referrals", []))
+        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        await message.answer(box("\U0001F4B0 NOT ENOUGH POINTS",
+            f"Welcome <b>{name}</b>!\n\n"
+            f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n"
+            f"<b>Referrals:</b> <code>{refs}</code> / <code>{MIN_REFERRALS}</code>\n\n"
+            f"Share your referral link to earn points:\n"
+            f"<code>{ref_link}</code>\n\n"
+            f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
+            f"<i>Need {REQUIRED_POINTS} points ({MIN_REFERRALS} referrals) to start</i>"
+        ), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="\U0001F511 ENTER KEY", callback_data="enter_key")],
+            [InlineKeyboardButton(text="\U0001F4DD MY REFERRALS", callback_data="check_referrals")],
+        ]))
+        return
+
+    image = img("profit.jpg")
+    text = box("\U0001F3B0 DUAL GAME AUTO BOT",
+        f"Welcome <b>{name}</b>!\n\n"
+        f"<b>Points:</b> <code>{user_data.get('points', 0)}</code>\n\n"
         "Choose Your Platform:\n\n"
-        "<b>JAI CLUB</b> - WinGo 30S / 1M\n"
-        "<b>51GAME</b> - WinGo 30S / 1M / 3M / 5M\n\n"
+        "\U0001F3B0 <b>JAI CLUB</b> - WinGo 30S / 1M\n"
+        "\U0001F3AF <b>51GAME</b> - WinGo 30S / 1M / 3M / 5M\n\n"
         "Features:\n"
         "- Auto Prediction\n"
         "- Dual Bet System\n"
         "- Level Staking\n"
-        "- Auto Restart\n"
-        "- Live Profit Updates\n\n"
-        "<i>Select a platform to continue:</i>"
-    ))
-
-    image = img("profit.jpg")
+        "- Profit Target\n\n"
+        "<i>Select a platform:</i>"
+    )
     try:
         if image:
-            await bot.send_photo(
-                chat_id=message.chat.id,
-                photo=FSInputFile(image),
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=platform_select_kb()
-            )
+            await bot.send_photo(chat_id=message.chat.id, photo=FSInputFile(image),
+                caption=text, parse_mode="HTML", reply_markup=platform_select_kb())
         else:
             await message.answer(text=text, reply_markup=platform_select_kb())
     except Exception as e:
         logger.error(f"start photo error: {e}")
         await message.answer(text=text, reply_markup=platform_select_kb())
 
-    update_user(user_id, {"name": name, "username": message.from_user.username or "", "logged_in": False})
-
 # ============================================
-# PLATFORM SELECTION
+# /admin COMMAND
 # ============================================
-
-@dp.callback_query(F.data.startswith("platform_"))
-async def handle_platform(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    if not check_rate_limit(user_id, "platform", 1):
-        await callback.answer("Wait a moment...", show_alert=False)
+@dp.message(Command("admin"))
+async def admin_command(message: Message):
+    if not is_admin(message.from_user):
+        await message.answer(box("\U0001F6AB DENIED", "Admin only."))
         return
+    users = _load_json(USERS_FILE)
+    total_users = len(users)
+    active = sum(1 for uid in _active_bots if _active_bots[uid].get("running"))
+    total_pts = sum(u.get("points", 0) for u in users.values())
+    await message.answer(box("\U0001F451 ADMIN PANEL",
+        f"<b>Total Users:</b> <code>{total_users}</code>\n"
+        f"<b>Active Bots:</b> <code>{active}</code>\n"
+        f"<b>Total Points:</b> <code>{total_pts}</code>"
+    ), reply_markup=admin_kb())
 
-    platform = callback.data.replace("platform_", "")
-    user_data = get_user(user_id)
-    user_data["platform"] = platform
-    update_user(user_id, user_data)
+@dp.message(Command("genkey"))
+async def genkey_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    count = 1
+    if len(parts) > 1:
+        try:
+            count = max(1, min(50, int(parts[1])))
+        except ValueError:
+            pass
+    keys = get_keys()
+    new_keys = []
+    for _ in range(count):
+        k = gen_key()
+        keys[k] = {"used": False, "created_by": message.from_user.id, "created_at": datetime.now().isoformat()}
+        new_keys.append(k)
+    save_keys(keys)
+    key_list = "\n".join(f"<code>{k}</code>" for k in new_keys)
+    await message.answer(box(f"\U0001F511 {count} KEYS GENERATED",
+        f"{key_list}\n\n<i>Share these keys with users</i>"
+    ))
 
-    if platform == "jai":
-        image_file = "jaiclub.webp"
-        text = box("JAI CLUB SELECTED", (
-            "<b>Platform:</b> JAI Club / AR Lottery\n"
-            "<b>Games:</b> WinGo 30 Second, 1 Minute\n"
-            "<b>API:</b> jaiclubapi.com\n"
-            "<b>Server:</b> ar-lottery06.com\n\n"
-            "<b>Auto Prediction</b> + <b>Dual Bet System</b>\n"
-            "<b>Level Staking</b> + <b>Profit Target</b>\n\n"
-            "Type <b>/login</b> to authenticate\n"
-            "Then enter balance to start bot"
-        ))
-    else:
-        image_file = "game_icon.png"
-        text = box("51GAME SELECTED", (
-            "<b>Platform:</b> 51gamet.com\n"
-            "<b>Games:</b> WinGo 30S, 1M, 3M, 5M\n"
-            "<b>API:</b> api51gameapi.com\n\n"
-            "<b>Auto Prediction</b> + <b>Dual Bet System</b>\n"
-            "<b>Level Staking</b> + <b>Profit Target</b>\n\n"
-            "Type <b>/login</b> to authenticate\n"
-            "Then enter balance to start bot"
-        ))
+@dp.message(Command("listkeys"))
+async def listkeys_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    keys = get_keys()
+    unused = [k for k, v in keys.items() if not v.get("used")]
+    used = [k for k, v in keys.items() if v.get("used")]
+    text = f"<b>Unused Keys:</b> <code>{len(unused)}</code>\n"
+    if unused[:10]:
+        text += "\n".join(f"<code>{k}</code>" for k in unused[:10])
+    if len(unused) > 10:
+        text += f"\n... and {len(unused)-10} more"
+    text += f"\n\n<b>Used Keys:</b> <code>{len(used)}</code>"
+    await message.answer(box("\U0001F4CB KEY LIST", text))
 
-    image = img(image_file)
+@dp.message(Command("stats"))
+async def stats_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    users = _load_json(USERS_FILE)
+    total = len(users)
+    active = sum(1 for uid in _active_bots if _active_bots[uid].get("running"))
+    total_pts = sum(u.get("points", 0) for u in users.values())
+    total_refs = sum(len(u.get("referrals", [])) for u in users.values())
+    keys = get_keys()
+    unused_keys = sum(1 for v in keys.values() if not v.get("used"))
+    await message.answer(box("\U0001F4CA STATS",
+        f"<b>Users:</b> <code>{total}</code>\n"
+        f"<b>Active Bots:</b> <code>{active}</code>\n"
+        f"<b>Total Points:</b> <code>{total_pts}</code>\n"
+        f"<b>Total Referrals:</b> <code>{total_refs}</code>\n"
+        f"<b>Unused Keys:</b> <code>{unused_keys}</code>"
+    ))
+
+@dp.message(Command("approve"))
+async def approve_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer("Usage: /approve user_id points")
+        return
     try:
-        await callback.message.delete()
+        uid = int(parts[1])
+        pts = int(parts[2])
+    except ValueError:
+        await message.answer("Invalid format. Usage: /approve user_id points")
+        return
+    user_data = get_user(uid)
+    user_data["access_key_valid"] = True
+    user_data["points"] = user_data.get("points", 0) + pts
+    update_user(uid, user_data)
+    await message.answer(box("\u2705 APPROVED", f"User <code>{uid}</code> approved with <code>{pts}</code> points"))
+    try:
+        await bot.send_message(uid, box("\u2705 APPROVED!",
+            f"You have been approved by admin!\n"
+            f"<b>Points:</b> <code>{user_data['points']}</code>\n\n"
+            "Send /start to continue."
+        ))
     except Exception:
         pass
 
-    try:
-        if image:
-            await bot.send_photo(
-                chat_id=callback.message.chat.id,
-                photo=FSInputFile(image),
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=main_menu_kb()
-            )
-        else:
-            await callback.message.answer(text=text, reply_markup=main_menu_kb())
-    except Exception as e:
-        logger.error(f"platform photo error: {e}")
-        await callback.message.answer(text=text, reply_markup=main_menu_kb())
-
-    await callback.answer(f"{platform.upper()} selected!", show_alert=False)
-
-# ============================================
-# /login COMMAND
-# ============================================
-
-@dp.message(Command("login"))
-async def login_command(message: Message):
-    user_id = message.from_user.id
-    if not check_rate_limit(user_id, "login", 2):
+@dp.message(Command("addpoints"))
+async def addpoints_command(message: Message):
+    if not is_admin(message.from_user):
         return
-    user_data = get_user(user_id)
-    platform = user_data.get("platform", "jai")
-    _user_states[user_id] = "login"
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer("Usage: /addpoints user_id amount")
+        return
+    try:
+        uid = int(parts[1])
+        amt = int(parts[2])
+    except ValueError:
+        await message.answer("Invalid format.")
+        return
+    user_data = get_user(uid)
+    user_data["points"] = user_data.get("points", 0) + amt
+    update_user(uid, user_data)
+    await message.answer(box("\u2705 DONE", f"Added <code>{amt}</code> points to <code>{uid}</code>\nTotal: <code>{user_data['points']}</code>"))
 
-    if platform == "jai":
-        title = "JAI CLUB LOGIN"
-        body = (
-            "Enter your <b>username</b> and <b>password</b>:\n\n"
-            "<code>username\npassword</code>\n\n"
-            "<i>Example:</i>\n"
-            "<code>919876543210\nmypassword123</code>"
-        )
-    else:
-        title = "51GAME LOGIN"
-        body = (
-            "Enter your <b>phone number</b> and <b>password</b>:\n\n"
-            "<code>phone\npassword</code>\n\n"
-            "<i>Example:</i>\n"
-            "<code>712813131819\nshiv1234</code>\n\n"
-            "<i>Note: 91 prefix is auto-added</i>"
-        )
+@dp.message(Command("ban"))
+async def ban_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        return
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        return
+    user_data = get_user(uid)
+    user_data["banned"] = True
+    update_user(uid, user_data)
+    if uid in _active_bots:
+        _active_bots[uid]["running"] = False
+    await message.answer(box("\U0001F6AB BANNED", f"User <code>{uid}</code> banned."))
 
-    await message.answer(text=box(title, body))
-
-# ============================================
-# /stop COMMAND
-# ============================================
+@dp.message(Command("unban"))
+async def unban_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        return
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        return
+    user_data = get_user(uid)
+    user_data["banned"] = False
+    update_user(uid, user_data)
+    await message.answer(box("\u2705 UNBANNED", f"User <code>{uid}</code> unbanned."))
 
 @dp.message(Command("stop"))
 async def stop_command(message: Message):
     user_id = message.from_user.id
     if user_id in _active_bots:
         _active_bots[user_id]["running"] = False
-
-    await message.answer(
-        text=box("BOT STOPPED", "Bot has been stopped.\nUse <b>/start</b> to restart."),
-        reply_markup=main_menu_kb()
-    )
+    await message.answer(box("\U0001F6D1 BOT STOPPED", "Bot stopped.\nUse /start to restart."), reply_markup=main_menu_kb())
 
 # ============================================
-# TEXT MESSAGE HANDLER
+# /refer COMMAND
 # ============================================
-
-@dp.message(F.text)
-async def handle_text(message: Message):
+@dp.message(Command("refer"))
+async def refer_command(message: Message):
     user_id = message.from_user.id
-    state = _user_states.get(user_id)
-    text = (message.text or "").strip()
     user_data = get_user(user_id)
+    ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+    refs = len(user_data.get("referrals", []))
+    pts = user_data.get("points", 0)
+    await message.answer(box("\U0001F4DD YOUR REFERRALS",
+        f"<b>Referral Link:</b>\n<code>{ref_link}</code>\n\n"
+        f"<b>Referrals:</b> <code>{refs}</code>\n"
+        f"<b>Points:</b> <code>{pts}</code>\n\n"
+        f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
+        f"<i>Need {REQUIRED_POINTS} points ({MIN_REFERRALS} referrals) to use bot</i>"
+    ))
+
+# ============================================
+# /points COMMAND
+# ============================================
+@dp.message(Command("points"))
+async def points_command(message: Message):
+    user_id = message.from_user.id
+    user_data = get_user(user_id)
+    pts = user_data.get("points", 0)
+    refs = len(user_data.get("referrals", []))
+    active = "Running" if _active_bots.get(user_id, {}).get("running") else "Stopped"
+    await message.answer(box("\U0001F4B0 YOUR POINTS",
+        f"<b>Points:</b> <code>{pts}</code>\n"
+        f"<b>Referrals:</b> <code>{refs}</code>\n"
+        f"<b>Status:</b> {active}\n\n"
+        f"<i>1 point = 1 minute play time</i>"
+    ))
+
+# ============================================
+# /login COMMAND
+# ============================================
+@dp.message(Command("login"))
+async def login_command(message: Message):
+    user_id = message.from_user.id
+    if not check_rate_limit(user_id, "login", 2):
+        return
+    user_data = get_user(user_id)
+    if not has_access(user_data) or not has_enough_points(user_data):
+        await message.answer(box("\U0001F6AB ACCESS DENIED", "You need a valid key and enough points."))
+        return
     platform = user_data.get("platform", "jai")
-
-    if state == "login":
-        lines = text.split("\n")
-        if len(lines) < 2:
-            await message.answer(box("FORMAT ERROR", "Send credentials in this format:\n<code>username\npassword</code>"))
-            return
-
-        username = lines[0].strip()[:50]
-        password = lines[1].strip()[:50]
-
-        if not username or not password:
-            await message.answer(box("ERROR", "Username and password cannot be empty"))
-            return
-
-        user_data["login_user"] = username
-        user_data["login_pass"] = password
-        user_data["logged_in"] = True
-        update_user(user_id, user_data)
-        _user_states[user_id] = "set_amount"
-
-        platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
-        await message.answer(text=box("SET BALANCE", (
-            f"<b>Platform:</b> {platform_name}\n\n"
-            "Enter your total balance:\n"
-            "<i>Examples:</i> <code>1000</code>, <code>5000</code>, <code>10000</code>\n\n"
-            "<i>Send the amount:</i>"
-        )))
-        return
-
-    if state == "set_amount":
-        try:
-            amount = max(100, int(text))
-            user_data["start_balance"] = amount
-            update_user(user_id, user_data)
-            _user_states.pop(user_id, None)
-
-            platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
-            await message.answer(
-                text=box("READY TO START", (
-                    f"<b>Platform:</b> {platform_name}\n"
-                    f"<b>Balance:</b> <code>{amount}</code>\n\n"
-                    "Bot is starting..."
-                )),
-                reply_markup=main_menu_kb()
-            )
-
-            user_data = get_user(user_id)
-            asyncio.create_task(run_betting(user_id, message.chat.id, user_data))
-        except ValueError:
-            await message.answer(box("INVALID AMOUNT", "Enter a valid number.\nMinimum: <code>100</code>"))
-        return
-
-    if state == "set_bet":
-        try:
-            bet = max(2, int(text))
-            user_data["total_bet"] = bet
-            update_user(user_id, user_data)
-            _user_states.pop(user_id, None)
-            await message.answer(
-                text=box("BET UPDATED", f"<b>Bet Amount:</b> <code>{bet}</code>"),
-                reply_markup=main_menu_kb()
-            )
-        except ValueError:
-            await message.answer(box("INVALID", "Enter a valid number.\nMinimum: <code>2</code>"))
-        return
-
-    if state == "set_mult":
-        try:
-            mult = max(1.5, float(text))
-            user_data["multiplier"] = mult
-            update_user(user_id, user_data)
-            _user_states.pop(user_id, None)
-            await message.answer(
-                text=box("MULTIPLIER UPDATED", f"<b>Multiplier:</b> <code>{mult}x</code>"),
-                reply_markup=main_menu_kb()
-            )
-        except ValueError:
-            await message.answer(box("INVALID", "Enter a valid number.\nMinimum: <code>1.5</code>"))
-        return
-
-    if state == "set_target":
-        try:
-            target = max(5, min(500, float(text)))
-            user_data["profit_target"] = target
-            update_user(user_id, user_data)
-            _user_states.pop(user_id, None)
-            await message.answer(
-                text=box("TARGET UPDATED", f"<b>Profit Target:</b> <code>{target}%</code>"),
-                reply_markup=main_menu_kb()
-            )
-        except ValueError:
-            await message.answer(box("INVALID", "Enter a valid percentage.\nRange: <code>5</code> - <code>500</code>"))
-        return
+    _user_states[user_id] = "login"
+    if platform == "jai":
+        title = "\U0001F511 JAI CLUB LOGIN"
+        body = "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>"
+    else:
+        title = "\U0001F511 51GAME LOGIN"
+        body = "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>"
+    await message.answer(text=box(title, body))
 
 # ============================================
 # CALLBACK QUERY HANDLER
 # ============================================
-
 @dp.callback_query()
 async def handle_callbacks(callback: CallbackQuery):
     user_id = callback.from_user.id
     if not check_rate_limit(user_id, "callback", 0.3):
         await callback.answer("Wait...", show_alert=False)
         return
-
     data = callback.data
     user_data = get_user(user_id)
+
+    # ---- ENTER KEY ----
+    if data == "enter_key":
+        _user_states[user_id] = "enter_key"
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F511 ENTER ACCESS KEY",
+                    "Type your access key:\n\n<code>KEY-XXXX-XXXX</code>"
+                ), reply_markup=back_only_kb())
+        except Exception:
+            await callback.message.answer(
+                text=box("\U0001F511 ENTER ACCESS KEY",
+                    "Type your access key:\n\n<code>KEY-XXXX-XXXX</code>"
+                ), reply_markup=back_only_kb())
+        await callback.answer()
+        return
+
+    # ---- CHECK REFERRALS ----
+    if data == "check_referrals":
+        user_data = get_user(user_id)
+        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        refs = len(user_data.get("referrals", []))
+        pts = user_data.get("points", 0)
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F4DD REFERRALS",
+                    f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
+                    f"<b>Referrals:</b> <code>{refs}</code> / <code>{MIN_REFERRALS}</code>\n"
+                    f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
+                    f"<i>Share link to earn {REFERRAL_POINTS} pts per referral</i>"
+                ), reply_markup=back_kb())
+        except Exception:
+            await callback.message.answer(
+                text=box("\U0001F4DD REFERRALS",
+                    f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
+                    f"<b>Referrals:</b> <code>{refs}</code>\n"
+                    f"<b>Points:</b> <code>{pts}</code>"
+                ), reply_markup=back_kb())
+        await callback.answer()
+        return
+
+    # ---- ADMIN CALLBACKS ----
+    if data == "admin_panel":
+        if not is_admin(callback.from_user):
+            await callback.answer("Admin only!", show_alert=True)
+            return
+        users = _load_json(USERS_FILE)
+        await callback.message.edit_text(
+            text=box("\U0001F451 ADMIN PANEL",
+                f"<b>Users:</b> <code>{len(users)}</code>\n"
+                f"<b>Active:</b> <code>{sum(1 for u in _active_bots.values() if u.get('running'))}</code>"
+            ), reply_markup=admin_kb())
+        await callback.answer()
+        return
+
+    if data == "admin_genkey":
+        if not is_admin(callback.from_user):
+            await callback.answer("Admin only!", show_alert=True)
+            return
+        _user_states[user_id] = "genkey"
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F511 GENERATE KEYS", "How many keys to generate?\n(1-50)"),
+                reply_markup=back_only_kb())
+        except Exception:
+            await callback.message.answer(
+                text=box("\U0001F511 GENERATE KEYS", "How many keys to generate?\n(1-50)"),
+                reply_markup=back_only_kb())
+        await callback.answer()
+        return
+
+    if data == "admin_stats":
+        if not is_admin(callback.from_user):
+            return
+        users = _load_json(USERS_FILE)
+        total_pts = sum(u.get("points", 0) for u in users.values())
+        total_refs = sum(len(u.get("referrals", [])) for u in users.values())
+        keys = get_keys()
+        unused = sum(1 for v in keys.values() if not v.get("used"))
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F4CA STATS",
+                    f"<b>Users:</b> <code>{len(users)}</code>\n"
+                    f"<b>Points:</b> <code>{total_pts}</code>\n"
+                    f"<b>Referrals:</b> <code>{total_refs}</code>\n"
+                    f"<b>Keys:</b> <code>{unused}</code> unused"
+                ), reply_markup=admin_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "admin_listkeys":
+        if not is_admin(callback.from_user):
+            return
+        keys = get_keys()
+        unused = [k for k, v in keys.items() if not v.get("used")]
+        text = "\n".join(f"<code>{k}</code>" for k in unused[:15])
+        if len(unused) > 15:
+            text += f"\n... +{len(unused)-15} more"
+        if not text:
+            text = "No unused keys."
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F4CB KEYS", text), reply_markup=admin_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "admin_addpts":
+        if not is_admin(callback.from_user):
+            return
+        _user_states[user_id] = "admin_addpts"
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F464 ADD POINTS", "Send: user_id amount\n\nExample: <code>123456 500</code>"),
+                reply_markup=back_only_kb())
+        except Exception:
+            await callback.message.answer(
+                text=box("\U0001F464 ADD POINTS", "Send: user_id amount"),
+                reply_markup=back_only_kb())
+        await callback.answer()
+        return
+
+    # ---- ACCESS CHECK ----
+    if not has_access(user_data):
+        await callback.answer("\U0001F511 Enter access key first!", show_alert=True)
+        return
+
+    if not has_enough_points(user_data):
+        await callback.answer(f"\U0001F4B0 Need {REQUIRED_POINTS} points! Get referrals.", show_alert=True)
+        return
+
     platform = user_data.get("platform", "jai")
 
     if data == "back_menu":
         try:
-            await callback.message.edit_text(
-                text=box("MAIN MENU", "Choose an option:"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F4CB MAIN MENU", "Choose an option:"), reply_markup=main_menu_kb())
         except Exception:
             try:
                 await callback.message.delete()
             except Exception:
                 pass
-            await callback.message.answer(
-                text=box("MAIN MENU", "Choose an option:"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.answer(text=box("\U0001F4CB MAIN MENU", "Choose an option:"), reply_markup=main_menu_kb())
+        await callback.answer()
         return
 
     if data == "switch_platform":
         try:
-            await callback.message.edit_text(
-                text=box("SWITCH PLATFORM", "Select a platform:"),
-                reply_markup=platform_select_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F504 SWITCH", "Select platform:"), reply_markup=platform_select_kb())
         except Exception:
             try:
                 await callback.message.delete()
             except Exception:
                 pass
-            await callback.message.answer(
-                text=box("SWITCH PLATFORM", "Select a platform:"),
-                reply_markup=platform_select_kb()
-            )
+            await callback.message.answer(text=box("\U0001F504 SWITCH", "Select platform:"), reply_markup=platform_select_kb())
+        await callback.answer()
         return
 
-    if data == "start_bot":
-        if not user_data.get("logged_in"):
-            await callback.answer("Login first! Send /login", show_alert=True)
-            return
-        if not user_data.get("start_balance"):
-            _user_states[user_id] = "set_amount"
-            try:
-                await callback.message.edit_text(
-                    text=box("SET BALANCE", "Enter your total balance:\n<i>Example:</i> <code>5000</code>"),
-                    reply_markup=back_only_kb()
-                )
-            except Exception:
-                await callback.message.answer(
-                    text=box("SET BALANCE", "Enter your total balance:\n<i>Example:</i> <code>5000</code>"),
-                    reply_markup=back_only_kb()
-                )
-            return
-
-        if user_id in _active_bots and _active_bots[user_id].get("running"):
-            await callback.answer("Bot is already running!", show_alert=True)
-            return
-
-        await callback.answer("Starting bot!", show_alert=False)
-        platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
-        try:
-            await callback.message.edit_text(
-                text=box("BOT STARTED", (
-                    f"<b>Platform:</b> {platform_name}\n\n"
-                    "Live updates incoming!\n"
-                    "Send <b>/stop</b> to stop"
-                )),
-                reply_markup=main_menu_kb()
+    if data.startswith("platform_"):
+        p = data.replace("platform_", "")
+        user_data["platform"] = p
+        update_user(user_id, user_data)
+        if p == "jai":
+            img_f = "jaiclub.webp"
+            text = box("\U0001F3B0 JAI CLUB SELECTED",
+                "<b>WinGo 30S / 1M</b>\n\n"
+                "Type <b>/login</b> to authenticate\n"
+                "Then enter balance to start"
             )
-        except Exception:
-            await callback.message.answer(
-                text=box("BOT STARTED", (
-                    f"<b>Platform:</b> {platform_name}\n\n"
-                    "Live updates incoming!\n"
-                    "Send <b>/stop</b> to stop"
-                )),
-                reply_markup=main_menu_kb()
+        else:
+            img_f = "game_icon.png"
+            text = box("\U0001F3AF 51GAME SELECTED",
+                "<b>WinGo 30S / 1M / 3M / 5M</b>\n\n"
+                "Type <b>/login</b> to authenticate\n"
+                "Then enter balance to start"
             )
-        asyncio.create_task(run_betting(user_id, callback.message.chat.id, user_data))
-        return
-
-    if data == "status":
-        bot_data = _active_bots.get(user_id, {})
-        running = "Running" if bot_data.get("running") else "Stopped"
-        level = bot_data.get("level", 0)
-        max_levels = len(bot_data.get("levels", [])) if bot_data.get("levels") else 0
-        platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
-
-        try:
-            await callback.message.edit_text(
-                text=box("BOT STATUS", (
-                    f"<b>Platform:</b> {platform_name}\n"
-                    f"<b>Status:</b> {running}\n"
-                    f"<b>Balance:</b> <code>{bot_data.get('balance', 0):.2f}</code>\n"
-                    f"<b>Profit:</b> <code>{bot_data.get('profit', 0):.2f}</code>\n"
-                    f"<b>Level:</b> <code>{level}/{max_levels}</code>"
-                )),
-                reply_markup=back_kb()
-            )
-        except Exception:
-            await callback.message.answer(
-                text=box("BOT STATUS", (
-                    f"<b>Platform:</b> {platform_name}\n"
-                    f"<b>Status:</b> {running}\n"
-                    f"<b>Balance:</b> <code>{bot_data.get('balance', 0):.2f}</code>\n"
-                    f"<b>Profit:</b> <code>{bot_data.get('profit', 0):.2f}</code>\n"
-                    f"<b>Level:</b> <code>{level}/{max_levels}</code>"
-                )),
-                reply_markup=back_kb()
-            )
-        return
-
-    if data == "profit":
-        bot_data = _active_bots.get(user_id, {})
-        start = bot_data.get("start_balance", 0)
-        curr = bot_data.get("balance", 0)
-        profit = curr - start
-        pct = ((profit / start) * 100) if start > 0 else 0
-
-        target = user_data.get("profit_target", 20)
-        target_status = "REACHED!" if pct >= target else f"Target: {target}%"
-
-        image = img("profit.jpg")
-        text = box("LIVE PROFIT", (
-            f"<b>Net Profit:</b> <code>{profit:.2f}</code>\n"
-            f"<b>Profit %:</b> <code>{pct:.1f}%</code>\n"
-            f"<b>Target:</b> <code>{target_status}</code>\n\n"
-            f"<b>Wins:</b> <code>{bot_data.get('double_win', 0)}</code>\n"
-            f"<b>Losses:</b> <code>{bot_data.get('double_loss', 0)}</code>\n"
-            f"<b>Level:</b> <code>{bot_data.get('level', 0)}</code>"
-        ))
-
+        image = img(img_f)
         try:
             await callback.message.delete()
         except Exception:
             pass
         try:
             if image:
-                await bot.send_photo(
-                    chat_id=callback.message.chat.id,
-                    photo=FSInputFile(image),
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=back_kb()
-                )
+                await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile(image),
+                    caption=text, parse_mode="HTML", reply_markup=main_menu_kb())
             else:
-                await callback.message.answer(text=text, reply_markup=back_kb())
+                await callback.message.answer(text=text, reply_markup=main_menu_kb())
         except Exception:
-            await callback.message.answer(text=text, reply_markup=back_kb())
+            await callback.message.answer(text=text, reply_markup=main_menu_kb())
+        await callback.answer(f"{p.upper()} selected!")
+        return
+
+    if data == "start_bot":
+        if not user_data.get("logged_in"):
+            await callback.answer("\U0001F511 Login first! Send /login", show_alert=True)
+            return
+        if not user_data.get("start_balance"):
+            _user_states[user_id] = "set_amount"
+            try:
+                await callback.message.edit_text(
+                    text=box("\U0001F4B0 SET BALANCE", "Enter total balance:\n<code>5000</code>"),
+                    reply_markup=back_only_kb())
+            except Exception:
+                await callback.message.answer(
+                    text=box("\U0001F4B0 SET BALANCE", "Enter total balance:\n<code>5000</code>"),
+                    reply_markup=back_only_kb())
+            await callback.answer()
+            return
+        if user_id in _active_bots and _active_bots[user_id].get("running"):
+            await callback.answer("\U0001F6D1 Bot already running!", show_alert=True)
+            return
+        await callback.answer("\U0001F680 Starting!")
+        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        try:
+            await callback.message.edit_text(
+                text=box("\u2705 BOT STARTED", f"<b>Platform:</b> {pn}\n\nSend <b>/stop</b> to stop"),
+                reply_markup=main_menu_kb())
+        except Exception:
+            await callback.message.answer(
+                text=box("\u2705 BOT STARTED", f"<b>Platform:</b> {pn}\n\nSend <b>/stop</b> to stop"),
+                reply_markup=main_menu_kb())
+        asyncio.create_task(run_betting(user_id, callback.message.chat.id, user_data))
+        return
+
+    if data == "status":
+        bd = _active_bots.get(user_id, {})
+        st = "Running" if bd.get("running") else "Stopped"
+        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        pts = user_data.get("points", 0)
+        txt = box("\U0001F4CA STATUS",
+            f"<b>Platform:</b> {pn}\n<b>Status:</b> {st}\n"
+            f"<b>Balance:</b> <code>{bd.get('balance',0):.2f}</code>\n"
+            f"<b>Profit:</b> <code>{bd.get('profit',0):.2f}</code>\n"
+            f"<b>Level:</b> <code>{bd.get('level',0)}</code>\n"
+            f"<b>Points:</b> <code>{pts}</code>")
+        try:
+            await callback.message.edit_text(text=txt, reply_markup=back_kb())
+        except Exception:
+            await callback.message.answer(text=txt, reply_markup=back_kb())
+        await callback.answer()
+        return
+
+    if data == "profit":
+        bd = _active_bots.get(user_id, {})
+        start = bd.get("start_balance", 0)
+        curr = bd.get("balance", 0)
+        profit = curr - start
+        pct = ((profit / start) * 100) if start > 0 else 0
+        target = user_data.get("profit_target", 20)
+        tgt = "REACHED!" if pct >= target else f"{target}%"
+        image = img("profit.jpg")
+        txt = box("\U0001F4B0 PROFIT",
+            f"<b>Profit:</b> <code>{profit:.2f}</code>\n"
+            f"<b>%:</b> <code>{pct:.1f}%</code>\n"
+            f"<b>Target:</b> <code>{tgt}</code>\n\n"
+            f"<b>Wins:</b> <code>{bd.get('double_win',0)}</code> | "
+            f"<b>Losses:</b> <code>{bd.get('double_loss',0)}</code>\n"
+            f"<b>Level:</b> <code>{bd.get('level',0)}</code>")
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        try:
+            if image:
+                await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile(image),
+                    caption=txt, parse_mode="HTML", reply_markup=back_kb())
+            else:
+                await callback.message.answer(text=txt, reply_markup=back_kb())
+        except Exception:
+            await callback.message.answer(text=txt, reply_markup=back_kb())
+        await callback.answer()
         return
 
     if data == "game_select":
         if platform == "jai":
-            text = box("JAI CLUB GAMES", "Select game type:")
+            txt = box("\U0001F3AE GAMES", "Select game type:")
             kb = game_menu_kb_jai()
         else:
-            text = box("51GAME GAMES", "Select game type:")
+            txt = box("\U0001F3AE GAMES", "Select game type:")
             kb = game_menu_kb_51()
-
         try:
-            await callback.message.edit_text(text=text, reply_markup=kb)
+            await callback.message.edit_text(text=txt, reply_markup=kb)
         except Exception:
             try:
                 await callback.message.delete()
             except Exception:
                 pass
-            await callback.message.answer(text=text, reply_markup=kb)
+            await callback.message.answer(text=txt, reply_markup=kb)
+        await callback.answer()
         return
 
     if data in ["game_30s", "game_1m"]:
         game = "WinGo_30S" if data == "game_30s" else "WinGo_1M"
         user_data["game"] = game
         update_user(user_id, user_data)
-        await callback.answer(f"Game: {game}", show_alert=False)
         try:
-            await callback.message.edit_text(
-                text=box("GAME SELECTED", f"<b>Game:</b> {game}"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.edit_text(text=box("\u2705 GAME SET", f"<b>{game}</b>"), reply_markup=main_menu_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("GAME SELECTED", f"<b>Game:</b> {game}"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.answer(text=box("\u2705 GAME SET", f"<b>{game}</b>"), reply_markup=main_menu_kb())
+        await callback.answer(f"Game: {game}")
         return
 
     if data.startswith("game51_"):
-        game_map = {"game51_30": 30, "game51_1m": 1, "game51_3m": 2, "game51_5m": 3}
-        type_id = game_map.get(data, 30)
-        user_data["game51_type_id"] = type_id
+        gm = {"game51_30": 30, "game51_1m": 1, "game51_3m": 2, "game51_5m": 3}
+        tid = gm.get(data, 30)
+        user_data["game51_type_id"] = tid
         update_user(user_id, user_data)
-        names = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
-        await callback.answer(f"Game: WinGo {names.get(type_id, '30S')}", show_alert=False)
+        nm = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
         try:
-            await callback.message.edit_text(
-                text=box("GAME SELECTED", f"<b>Game:</b> WinGo {names.get(type_id, '30S')}"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.edit_text(text=box("\u2705 GAME SET", f"<b>WinGo {nm.get(tid,'30S')}</b>"), reply_markup=main_menu_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("GAME SELECTED", f"<b>Game:</b> WinGo {names.get(type_id, '30S')}"),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.answer(text=box("\u2705 GAME SET", f"<b>WinGo {nm.get(tid,'30S')}</b>"), reply_markup=main_menu_kb())
+        await callback.answer(f"WinGo {nm.get(tid,'30S')}")
         return
 
     if data == "stop_bot":
         try:
-            await callback.message.edit_text(
-                text=box("STOP BOT?", "Are you sure you want to stop?"),
-                reply_markup=stop_confirm_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F6D1 STOP?", "Confirm stop:"), reply_markup=stop_confirm_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("STOP BOT?", "Are you sure you want to stop?"),
-                reply_markup=stop_confirm_kb()
-            )
+            await callback.message.answer(text=box("\U0001F6D1 STOP?", "Confirm stop:"), reply_markup=stop_confirm_kb())
+        await callback.answer()
         return
 
     if data == "confirm_stop":
         if user_id in _active_bots:
             _active_bots[user_id]["running"] = False
-        await callback.answer("Bot stopped!", show_alert=True)
         try:
-            await callback.message.edit_text(
-                text=box("BOT STOPPED", "Bot has been stopped.\nUse <b>/start</b> to restart."),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F6D1 STOPPED", "Use /start to restart."), reply_markup=main_menu_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("BOT STOPPED", "Bot has been stopped.\nUse <b>/start</b> to restart."),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.answer(text=box("\U0001F6D1 STOPPED", "Use /start to restart."), reply_markup=main_menu_kb())
+        await callback.answer("\U0001F6D1 Stopped!")
         return
 
     if data == "cancel_stop":
-        await callback.answer("Bot is still running!", show_alert=False)
         try:
-            await callback.message.edit_text(
-                text=box("BOT RUNNING", "Bot continues to run."),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.edit_text(text=box("\u2705 RUNNING", "Bot continues."), reply_markup=main_menu_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("BOT RUNNING", "Bot continues to run."),
-                reply_markup=main_menu_kb()
-            )
+            await callback.message.answer(text=box("\u2705 RUNNING", "Bot continues."), reply_markup=main_menu_kb())
+        await callback.answer("Still running!")
         return
 
     if data == "settings":
         try:
-            await callback.message.edit_text(
-                text=box("SETTINGS", "Adjust bot settings:"),
-                reply_markup=settings_kb(user_data)
-            )
+            await callback.message.edit_text(text=box("\u2699 SETTINGS", "Adjust settings:"), reply_markup=settings_kb(user_data))
         except Exception:
-            await callback.message.answer(
-                text=box("SETTINGS", "Adjust bot settings:"),
-                reply_markup=settings_kb(user_data)
-            )
+            await callback.message.answer(text=box("\u2699 SETTINGS", "Adjust settings:"), reply_markup=settings_kb(user_data))
+        await callback.answer()
         return
 
     if data == "toggle_restart":
         user_data["auto_restart"] = not user_data.get("auto_restart", True)
         update_user(user_id, user_data)
-        status = "ON" if user_data["auto_restart"] else "OFF"
-        await callback.answer(f"Auto Restart: {status}", show_alert=False)
+        st = "ON" if user_data["auto_restart"] else "OFF"
         try:
-            await callback.message.edit_text(
-                text=box("SETTINGS", f"<b>Auto Restart:</b> {status}"),
-                reply_markup=settings_kb(user_data)
-            )
+            await callback.message.edit_text(text=box("\u2699 SETTINGS", f"<b>Restart:</b> {st}"), reply_markup=settings_kb(user_data))
         except Exception:
             pass
+        await callback.answer(f"Restart: {st}")
         return
 
     if data == "set_bet":
         _user_states[user_id] = "set_bet"
         try:
-            await callback.message.edit_text(
-                text=box("SET BET AMOUNT", "Enter bet amount (min: <code>2</code>):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F4B0 SET BET", "Enter bet amount (min 2):"), reply_markup=back_only_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("SET BET AMOUNT", "Enter bet amount (min: <code>2</code>):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.answer(text=box("\U0001F4B0 SET BET", "Enter bet amount (min 2):"), reply_markup=back_only_kb())
+        await callback.answer()
         return
 
     if data == "set_multiplier":
         _user_states[user_id] = "set_mult"
         try:
-            await callback.message.edit_text(
-                text=box("SET MULTIPLIER", "Enter multiplier (min: <code>1.5</code>):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F4C8 SET MULTIPLIER", "Enter multiplier (min 1.5):"), reply_markup=back_only_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("SET MULTIPLIER", "Enter multiplier (min: <code>1.5</code>):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.answer(text=box("\U0001F4C8 SET MULTIPLIER", "Enter multiplier (min 1.5):"), reply_markup=back_only_kb())
+        await callback.answer()
         return
 
     if data == "set_target":
         _user_states[user_id] = "set_target"
         try:
-            await callback.message.edit_text(
-                text=box("SET PROFIT TARGET", "Enter target profit % (5 - 500):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.edit_text(text=box("\U0001F3AF SET TARGET", "Enter target % (5-500):"), reply_markup=back_only_kb())
         except Exception:
-            await callback.message.answer(
-                text=box("SET PROFIT TARGET", "Enter target profit % (5 - 500):"),
-                reply_markup=back_only_kb()
-            )
+            await callback.message.answer(text=box("\U0001F3AF SET TARGET", "Enter target % (5-500):"), reply_markup=back_only_kb())
+        await callback.answer()
         return
 
-    if data == "help":
-        help_text = box("HELP", (
-            "<b>Commands:</b>\n"
-            "/start - Start bot & select platform\n"
-            "/login - Login with credentials\n"
-            "/stop - Stop bot\n\n"
-            "<b>How it works:</b>\n"
-            "1. Choose platform\n"
-            "2. Login with credentials\n"
-            "3. Set balance & start!\n"
-            "4. Watch live profit updates!\n\n"
-            "<b>Platforms:</b>\n"
-            "JAI CLUB - WinGo 30S/1M\n"
-            "51GAME - WinGo 30S/1M/3M/5M\n\n"
-            "<b>Profit Target:</b>\n"
-            "Set a target % in Settings.\n"
-            "Bot will celebrate when reached!"
-        ))
+# ============================================
+# TEXT MESSAGE HANDLER
+# ============================================
+@dp.message(F.text)
+async def handle_text(message: Message):
+    user_id = message.from_user.id
+    state = _user_states.get(user_id)
+    text = (message.text or "").strip()
+    user_data = get_user(user_id)
+
+    # ---- ADMIN STATES ----
+    if is_admin(message.from_user):
+        if state == "genkey":
+            _user_states.pop(user_id, None)
+            try:
+                count = max(1, min(50, int(text)))
+            except ValueError:
+                count = 1
+            keys = get_keys()
+            new_keys = []
+            for _ in range(count):
+                k = gen_key()
+                keys[k] = {"used": False, "created_by": user_id, "created_at": datetime.now().isoformat()}
+                new_keys.append(k)
+            save_keys(keys)
+            key_list = "\n".join(f"<code>{k}</code>" for k in new_keys)
+            await message.answer(box(f"\U0001F511 {count} KEYS", f"{key_list}"))
+            return
+
+        if state == "admin_addpts":
+            _user_states.pop(user_id, None)
+            parts = text.split()
+            if len(parts) >= 2:
+                try:
+                    uid = int(parts[0])
+                    amt = int(parts[1])
+                    ud = get_user(uid)
+                    ud["points"] = ud.get("points", 0) + amt
+                    update_user(uid, ud)
+                    await message.answer(box("\u2705 DONE", f"Added {amt} to <code>{uid}</code>\nTotal: {ud['points']}"))
+                except (ValueError, IndexError):
+                    await message.answer("Format: user_id amount")
+            return
+
+    # ---- ENTER KEY STATE ----
+    if state == "enter_key":
+        _user_states.pop(user_id, None)
+        key = text.strip().upper()
+        keys = get_keys()
+        if key in keys and not keys[key].get("used"):
+            keys[key]["used"] = True
+            keys[key]["used_by"] = user_id
+            save_keys(keys)
+            user_data["access_key_valid"] = True
+            user_data["access_key"] = key
+            update_user(user_id, user_data)
+            await message.answer(box("\u2705 KEY ACCEPTED!",
+                "Access granted!\n\nNow set your balance to start.\nUse /start to continue."
+            ))
+        else:
+            await message.answer(box("\u274C INVALID KEY", "Key not found or already used.\nTry again or contact admin."))
+        return
+
+    # ---- LOGIN STATE ----
+    if state == "login":
+        if not has_access(user_data) or not has_enough_points(user_data):
+            await message.answer(box("\U0001F6AB DENIED", "Need valid key and points."))
+            return
+        lines = text.split("\n")
+        if len(lines) < 2:
+            await message.answer(box("\u274C FORMAT", "Send:\n<code>username\npassword</code>"))
+            return
+        username = lines[0].strip()[:50]
+        password = lines[1].strip()[:50]
+        if not username or not password:
+            await message.answer(box("\u274C EMPTY", "Username/password cannot be empty"))
+            return
+        user_data["login_user"] = username
+        user_data["login_pass"] = password
+        user_data["logged_in"] = True
+        update_user(user_id, user_data)
+        _user_states[user_id] = "set_amount"
+        platform = user_data.get("platform", "jai")
+        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        await message.answer(text=box("\U0001F4B0 SET BALANCE",
+            f"<b>{pn}</b>\n\nEnter balance:\n<code>5000</code>"))
+        return
+
+    if state == "set_amount":
         try:
-            await callback.message.edit_text(text=help_text, reply_markup=back_kb())
-        except Exception:
-            await callback.message.answer(text=help_text, reply_markup=back_kb())
+            amount = max(100, int(text))
+        except ValueError:
+            await message.answer(box("\u274C INVALID", "Enter a number. Min 100"))
+            return
+        user_data["start_balance"] = amount
+        update_user(user_id, user_data)
+        _user_states.pop(user_id, None)
+        platform = user_data.get("platform", "jai")
+        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        await message.answer(text=box("\u2705 READY", f"<b>{pn}</b> | Balance: {amount}\nStarting..."), reply_markup=main_menu_kb())
+        user_data = get_user(user_id)
+        asyncio.create_task(run_betting(user_id, message.chat.id, user_data))
+        return
+
+    if state == "set_bet":
+        try:
+            bet = max(2, int(text))
+        except ValueError:
+            await message.answer(box("\u274C INVALID", "Enter a number. Min 2"))
+            return
+        user_data["total_bet"] = bet
+        update_user(user_id, user_data)
+        _user_states.pop(user_id, None)
+        await message.answer(text=box("\u2705 BET SET", f"<b>{bet}</b>"), reply_markup=main_menu_kb())
+        return
+
+    if state == "set_mult":
+        try:
+            mult = max(1.5, float(text))
+        except ValueError:
+            await message.answer(box("\u274C INVALID", "Enter a number. Min 1.5"))
+            return
+        user_data["multiplier"] = mult
+        update_user(user_id, user_data)
+        _user_states.pop(user_id, None)
+        await message.answer(text=box("\u2705 MULTIPLIER SET", f"<b>{mult}x</b>"), reply_markup=main_menu_kb())
+        return
+
+    if state == "set_target":
+        try:
+            target = max(5, min(500, float(text)))
+        except ValueError:
+            await message.answer(box("\u274C INVALID", "Enter 5-500"))
+            return
+        user_data["profit_target"] = target
+        update_user(user_id, user_data)
+        _user_states.pop(user_id, None)
+        await message.answer(text=box("\u2705 TARGET SET", f"<b>{target}%</b>"), reply_markup=main_menu_kb())
         return
 
 # ============================================
 # RUN BETTING - JAI CLUB
 # ============================================
-
 async def run_betting_jai(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
     password = user_data.get("login_pass", "")
@@ -828,7 +1087,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
     start_balance = user_data.get("start_balance", 500)
     profit_target = user_data.get("profit_target", 20)
 
-    msg = await bot.send_message(chat_id, box("JAI CLUB", "Logging in..."), reply_markup=main_menu_kb())
+    msg = await bot.send_message(chat_id, box("\u23F3 JAI CLUB", "Logging in..."), reply_markup=main_menu_kb())
     _profit_messages[user_id] = msg.message_id
 
     try:
@@ -839,7 +1098,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
         engine.checker.fetch_ar_token(game)
     except Exception as e:
         try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id, text=box("LOGIN FAILED", safe_str(e, 100)))
+            await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id, text=box("\u274C FAILED", safe_str(e, 100)))
         except Exception:
             pass
         return
@@ -848,24 +1107,43 @@ async def run_betting_jai(user_id, chat_id, user_data):
     engine.current_balance = start_balance
     engine.levels = make_levels(start_balance, total_bet, multiplier)
 
-    logger.info(f"JAI CLUB ready: game={game} bal={start_balance} levels={len(engine.levels)}")
-
     bot_state = {
         "running": True, "start_balance": start_balance, "balance": start_balance,
         "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
         "double_win": 0, "double_loss": 0, "level": 0, "pending": None, "last_seen_period": None,
-        "target_hit": False, "profit_target": profit_target
+        "target_hit": False, "profit_target": profit_target, "start_time": time.time()
     }
     _active_bots[user_id] = bot_state
     await update_profit_msg(user_id, chat_id, bot_state, "RUNNING", "JAI CLUB")
 
     while bot_state["running"]:
         try:
+            ud = get_user(user_id)
+            if not ud.get("is_admin") and ud.get("points", 0) <= 0 and not ud.get("banned"):
+                bot_state["running"] = False
+                try:
+                    await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left! Get referrals to earn more."))
+                except Exception:
+                    pass
+                break
+
+            elapsed = time.time() - bot_state["start_time"]
+            if elapsed >= 60:
+                bot_state["start_time"] = time.time()
+                if not ud.get("is_admin"):
+                    remaining = deduct_point(user_id)
+                    if remaining <= 0:
+                        bot_state["running"] = False
+                        try:
+                            await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left!"))
+                        except Exception:
+                            pass
+                        break
+
             data = engine.fetch_draw_history(6)
             if not data:
                 await asyncio.sleep(1)
                 continue
-
             latest = str(data[0]["issueNumber"])
             nums = [int(x["number"]) for x in data[:6]]
 
@@ -877,7 +1155,6 @@ async def run_betting_jai(user_id, chat_id, user_data):
                     actual_color = "GREEN" if actual_num in {1,3,5,7,9} else "RED"
                     bs_match = pending["bs_prediction"] == actual_bs
                     color_match = pending["color_prediction"] == actual_color
-
                     if bs_match and color_match:
                         result = "DOUBLE WIN"
                         bot_state["double_win"] += 1
@@ -895,28 +1172,17 @@ async def run_betting_jai(user_id, chat_id, user_data):
                         if bot_state["level"] >= len(engine.levels):
                             bot_state["running"] = False
                             break
-
                     bot_state["pending"] = None
                     bot_state["profit"] = bot_state["total_won"] - bot_state["total_lost"]
                     bot_state["balance"] = bot_state["start_balance"] + bot_state["profit"]
-
                     pct = ((bot_state["profit"] / bot_state["start_balance"]) * 100) if bot_state["start_balance"] > 0 else 0
                     if pct >= profit_target and not bot_state["target_hit"]:
                         bot_state["target_hit"] = True
                         try:
-                            target_text = box("TARGET REACHED!", (
-                                f"<b>Target:</b> <code>{profit_target}%</code>\n"
-                                f"<b>Profit:</b> <code>+{bot_state['profit']:.2f}</code>\n"
-                                f"<b>Profit %:</b> <code>+{pct:.1f}%</code>\n\n"
-                                "Congratulations! Keep going or stop with /stop"
-                            ))
-                            await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                [InlineKeyboardButton(text="STOP BOT", callback_data="confirm_stop")],
-                                [InlineKeyboardButton(text="CONTINUE", callback_data="back_menu")]
-                            ]))
-                        except Exception as e:
-                            logger.error(f"Target celebration error: {e}")
-
+                            await bot.send_message(chat_id, box("\U0001F389 TARGET REACHED!",
+                                f"<b>Target:</b> {profit_target}%\n<b>Profit:</b> +{bot_state['profit']:.2f}"))
+                        except Exception:
+                            pass
                     await update_profit_msg(user_id, chat_id, bot_state, result, "JAI CLUB")
                 await asyncio.sleep(1)
                 continue
@@ -944,10 +1210,9 @@ async def run_betting_jai(user_id, chat_id, user_data):
                         "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
                         "total_bet": lv["total_bet"], "level": lv["level"]
                     }
-                    logger.info(f"Bet: issue={open_issue} bs={bs_pred} color={co_pred} L{lv['level']}")
                     await update_profit_msg(user_id, chat_id, bot_state, "WAITING", "JAI CLUB")
                 except Exception as e:
-                    logger.error(f"Bet failed on {open_issue}: {e}")
+                    logger.error(f"Bet failed: {e}")
             await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"JAI error: {e}")
@@ -963,7 +1228,6 @@ async def run_betting_jai(user_id, chat_id, user_data):
 # ============================================
 # RUN BETTING - 51GAME
 # ============================================
-
 async def run_betting_51(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
     password = user_data.get("login_pass", "")
@@ -972,7 +1236,7 @@ async def run_betting_51(user_id, chat_id, user_data):
     start_balance = user_data.get("start_balance", 500)
     profit_target = user_data.get("profit_target", 20)
 
-    msg = await bot.send_message(chat_id, box("51GAME", "Logging in..."), reply_markup=main_menu_kb())
+    msg = await bot.send_message(chat_id, box("\u23F3 51GAME", "Logging in..."), reply_markup=main_menu_kb())
     _profit_messages[user_id] = msg.message_id
 
     checker = Game51AccountChecker(username, password)
@@ -980,14 +1244,14 @@ async def run_betting_51(user_id, chat_id, user_data):
         if not checker.perform_login():
             try:
                 await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                    text=box("LOGIN FAILED", safe_str(checker.message, 100)))
+                    text=box("\u274C FAILED", safe_str(checker.message, 100)))
             except Exception:
                 pass
             return
     except Exception as e:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                text=box("LOGIN FAILED", safe_str(e, 100)))
+                text=box("\u274C FAILED", safe_str(e, 100)))
         except Exception:
             pass
         return
@@ -995,7 +1259,6 @@ async def run_betting_51(user_id, chat_id, user_data):
     balance = checker.get_balance()
     if balance <= 0:
         balance = start_balance
-
     game_names = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
     game_name = game_names.get(type_id, "30 SEC")
 
@@ -1003,20 +1266,40 @@ async def run_betting_51(user_id, chat_id, user_data):
         "running": True, "start_balance": balance, "balance": balance,
         "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
         "double_win": 0, "double_loss": 0, "level": 0, "pending": None, "last_seen_period": None,
-        "target_hit": False, "profit_target": profit_target
+        "target_hit": False, "profit_target": profit_target, "start_time": time.time()
     }
     _active_bots[user_id] = bot_state
-    await update_profit_msg(user_id, chat_id, bot_state, "RUNNING", f"51GAME {game_name}")
-
     levels = make_levels(balance, total_bet, 2.0)
+    await update_profit_msg(user_id, chat_id, bot_state, "RUNNING", f"51GAME {game_name}")
 
     while bot_state["running"]:
         try:
+            ud = get_user(user_id)
+            if not ud.get("is_admin") and ud.get("points", 0) <= 0 and not ud.get("banned"):
+                bot_state["running"] = False
+                try:
+                    await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left!"))
+                except Exception:
+                    pass
+                break
+
+            elapsed = time.time() - bot_state["start_time"]
+            if elapsed >= 60:
+                bot_state["start_time"] = time.time()
+                if not ud.get("is_admin"):
+                    remaining = deduct_point(user_id)
+                    if remaining <= 0:
+                        bot_state["running"] = False
+                        try:
+                            await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left!"))
+                        except Exception:
+                            pass
+                        break
+
             history = checker.fetch_draw_history(type_id, 6)
             if not history:
                 await asyncio.sleep(1)
                 continue
-
             latest = str(history[0].get("issueNumber", ""))
             nums = [int(h.get("number", 0)) for h in history[:6]]
 
@@ -1028,7 +1311,6 @@ async def run_betting_51(user_id, chat_id, user_data):
                     actual_color = result_to_color(actual_num)
                     bs_match = pending["bs_prediction"] == actual_bs
                     color_match = pending["color_prediction"] == actual_color
-
                     if bs_match and color_match:
                         result = "DOUBLE WIN"
                         bot_state["double_win"] += 1
@@ -1046,28 +1328,17 @@ async def run_betting_51(user_id, chat_id, user_data):
                         if bot_state["level"] >= len(levels):
                             bot_state["running"] = False
                             break
-
                     bot_state["pending"] = None
                     bot_state["profit"] = bot_state["total_won"] - bot_state["total_lost"]
                     bot_state["balance"] = bot_state["start_balance"] + bot_state["profit"]
-
                     pct = ((bot_state["profit"] / bot_state["start_balance"]) * 100) if bot_state["start_balance"] > 0 else 0
                     if pct >= profit_target and not bot_state["target_hit"]:
                         bot_state["target_hit"] = True
                         try:
-                            target_text = box("TARGET REACHED!", (
-                                f"<b>Target:</b> <code>{profit_target}%</code>\n"
-                                f"<b>Profit:</b> <code>+{bot_state['profit']:.2f}</code>\n"
-                                f"<b>Profit %:</b> <code>+{pct:.1f}%</code>\n\n"
-                                "Congratulations! Keep going or stop with /stop"
-                            ))
-                            await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                [InlineKeyboardButton(text="STOP BOT", callback_data="confirm_stop")],
-                                [InlineKeyboardButton(text="CONTINUE", callback_data="back_menu")]
-                            ]))
-                        except Exception as e:
-                            logger.error(f"Target celebration error: {e}")
-
+                            await bot.send_message(chat_id, box("\U0001F389 TARGET!",
+                                f"<b>Profit:</b> +{bot_state['profit']:.2f} ({pct:.1f}%)"))
+                        except Exception:
+                            pass
                     await update_profit_msg(user_id, chat_id, bot_state, result, f"51GAME {game_name}")
                 await asyncio.sleep(1)
                 continue
@@ -1100,10 +1371,7 @@ async def run_betting_51(user_id, chat_id, user_data):
                             "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
                             "total_bet": lv["total_bet"], "level": lv["level"]
                         }
-                        logger.info(f"51GAME Bet: issue={open_issue} bs={bs_pred} color={co_pred} L{lv['level']}")
                         await update_profit_msg(user_id, chat_id, bot_state, "WAITING", f"51GAME {game_name}")
-                    else:
-                        logger.error(f"51GAME Both bets failed: {results}")
                 except Exception as e:
                     logger.error(f"51GAME Bet failed: {e}")
             await asyncio.sleep(1)
@@ -1119,19 +1387,14 @@ async def run_betting_51(user_id, chat_id, user_data):
             pass
 
 # ============================================
-# RUN BETTING - ROUTER
+# ROUTER + PROFIT
 # ============================================
-
 async def run_betting(user_id, chat_id, user_data):
     platform = user_data.get("platform", "jai")
     if platform == "51":
         await run_betting_51(user_id, chat_id, user_data)
     else:
         await run_betting_jai(user_id, chat_id, user_data)
-
-# ============================================
-# UPDATE PROFIT MESSAGE
-# ============================================
 
 async def update_profit_msg(user_id, chat_id, bot_state, status="RUNNING", platform="JAI CLUB"):
     msg_id = _profit_messages.get(user_id)
@@ -1141,47 +1404,34 @@ async def update_profit_msg(user_id, chat_id, bot_state, status="RUNNING", platf
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text, reply_markup=main_menu_kb())
     except Exception as e:
-        if "message is not modified" not in str(e):
-            logger.error(f"Edit profit msg error: {e}")
+        if "not modified" not in str(e) and "not found" not in str(e):
+            logger.error(f"Edit profit error: {e}")
 
 def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
     profit = bot_state.get("profit", 0)
     start = bot_state.get("start_balance", 0)
     pct = ((profit / start) * 100) if start > 0 else 0
     target = bot_state.get("profit_target", 20)
-
-    if status == "RUNNING":
-        s_text = "Running"
-    elif status == "WAITING":
-        s_text = "Waiting"
-    elif status == "STOPPED":
-        s_text = "Stopped"
-    elif "WIN" in status:
-        s_text = status
-    elif "LOSS" in status:
-        s_text = status
-    else:
-        s_text = status
-
+    s_map = {"RUNNING": "Running", "WAITING": "Waiting", "STOPPED": "Stopped"}
+    s_text = s_map.get(status, status)
     sign = "+" if profit >= 0 else ""
-    target_indicator = f"{target}% OK" if pct >= target else f"{target}%"
-
-    return box(f"{platform} PROFIT", (
+    tgt = f"{target}% OK" if pct >= target else f"{target}%"
+    return box(f"\U0001F4B0 {platform}", (
         f"<b>Status:</b> {s_text}\n\n"
-        f"<b>Net Profit:</b> <code>{sign}{profit:.2f}</code>\n"
-        f"<b>Profit %:</b> <code>{sign}{pct:.1f}%</code>\n"
-        f"<b>Target:</b> <code>{target_indicator}</code>\n\n"
-        f"<b>Wins:</b> <code>{bot_state.get('wins', 0)}</code>  |  <b>Losses:</b> <code>{bot_state.get('losses', 0)}</code>\n"
-        f"<b>Double Win:</b> <code>{bot_state.get('double_win', 0)}</code>  |  <b>Double Loss:</b> <code>{bot_state.get('double_loss', 0)}</code>\n\n"
-        f"<b>Level:</b> <code>{bot_state.get('level', 0)}</code>\n"
-        f"<b>Won:</b> <code>{bot_state.get('total_won', 0):.2f}</code>  |  <b>Lost:</b> <code>{bot_state.get('total_lost', 0):.2f}</code>\n\n"
+        f"<b>Profit:</b> <code>{sign}{profit:.2f}</code>\n"
+        f"<b>%:</b> <code>{sign}{pct:.1f}%</code>\n"
+        f"<b>Target:</b> <code>{tgt}</code>\n\n"
+        f"<b>Wins:</b> <code>{bot_state.get('wins',0)}</code> | "
+        f"<b>Losses:</b> <code>{bot_state.get('losses',0)}</code>\n"
+        f"<b>DW:</b> <code>{bot_state.get('double_win',0)}</code> | "
+        f"<b>DL:</b> <code>{bot_state.get('double_loss',0)}</code>\n"
+        f"<b>Level:</b> <code>{bot_state.get('level',0)}</code>\n\n"
         f"<i>{datetime.now().strftime('%H:%M:%S')}</i>"
     ))
 
 # ============================================
 # BOT START
 # ============================================
-
 async def main():
     print("DUAL GAME BOT STARTED!")
     await bot.delete_webhook(drop_pending_updates=True)
