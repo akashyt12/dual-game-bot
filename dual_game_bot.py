@@ -11,7 +11,6 @@ import asyncio
 import logging
 import random
 import time
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 from html import escape
@@ -32,7 +31,7 @@ from aiogram.types import (
 BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
 CHANNEL_ID = "@JaiClubOfficial"
 CHANNEL_URL = "https://t.me/JaiClubOfficial"
-IMAGES_DIR = Path("/home/akash/mimo-test/images")
+IMAGES_DIR = Path(__file__).resolve().parent / "images"
 
 BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
@@ -48,28 +47,6 @@ dp = Dispatcher()
 user_states = {}
 active_bots = {}
 profit_messages = {}
-
-# ============================================
-# IMAGE DOWNLOAD
-# ============================================
-
-IMAGE_URLS = {
-    "profit.jpg": "https://t3.ftcdn.net/jpg/03/76/73/94/360_F_376739477_RzVTIqh9QmtkqBlIGD3HTOW7K3q3ZEuq.jpg",
-    "jaiclub.webp": "http://jaiclubgame.cc/wp-content/uploads/2026/04/Jai-Club-logo-with-golden-details-2.webp",
-}
-
-def download_images():
-    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    for fname, url in IMAGE_URLS.items():
-        fpath = IMAGES_DIR / fname
-        if not fpath.exists():
-            try:
-                urllib.request.urlretrieve(url, str(fpath))
-                logger.info(f"Downloaded: {fname}")
-            except Exception as e:
-                logger.warning(f"Failed to download {fname}: {e}")
-
-download_images()
 
 # ============================================
 # HELPERS
@@ -95,6 +72,7 @@ def update_user(user_id, data):
 
 def img(name):
     p = IMAGES_DIR / name
+    logger.info(f"Image lookup: {p} exists={p.exists()}")
     return str(p) if p.exists() else None
 
 def box(title, body):
@@ -208,10 +186,18 @@ async def start_command(message: Message):
     image = img("profit.jpg")
     try:
         if image:
-            await message.answer_photo(photo=InputMediaPhoto(media=open(image, "rb")), caption=text, reply_markup=platform_select_kb())
+            with open(image, "rb") as f:
+                await bot.send_photo(
+                    chat_id=message.chat.id,
+                    photo=f,
+                    caption=text,
+                    parse_mode="HTML",
+                    reply_markup=platform_select_kb()
+                )
         else:
             await message.answer(text=text, reply_markup=platform_select_kb())
-    except Exception:
+    except Exception as e:
+        logger.error(f"start send_photo error: {e}")
         await message.answer(text=text, reply_markup=platform_select_kb())
 
     update_user(user_id, {"name": name, "username": message.from_user.username, "logged_in": False})
@@ -241,7 +227,7 @@ async def handle_platform(callback: CallbackQuery):
             "💰 Then enter balance to start bot"
         ))
     else:
-        image_file = "game51.png"
+        image_file = None
         text = box("🎯 51GAME SELECTED", (
             "<b>Platform:</b> 51gamet.com\n"
             "<b>Games:</b> WinGo 30S, 1M, 3M, 5M\n"
@@ -251,16 +237,24 @@ async def handle_platform(callback: CallbackQuery):
 
     image = img(image_file)
     try:
-        if image:
-            photo = InputMediaPhoto(media=open(image, "rb"), caption=text)
-            await callback.message.edit_media(media=photo, reply_markup=main_menu_kb())
-        else:
-            await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
+        await callback.message.delete()
     except Exception:
-        try:
-            await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
-        except Exception:
-            pass
+        pass
+    try:
+        if image:
+            with open(image, "rb") as f:
+                await bot.send_photo(
+                    chat_id=callback.message.chat.id,
+                    photo=f,
+                    caption=text,
+                    parse_mode="HTML",
+                    reply_markup=main_menu_kb()
+                )
+        else:
+            await callback.message.answer(text=text, reply_markup=main_menu_kb())
+    except Exception as e:
+        logger.error(f"send_photo error: {e}")
+        await callback.message.answer(text=text, reply_markup=main_menu_kb())
 
     await callback.answer(f"✅ {platform.upper()} selected!", show_alert=False)
 
@@ -503,36 +497,34 @@ async def handle_callbacks(callback: CallbackQuery):
         ))
 
         try:
-            if image:
-                photo = InputMediaPhoto(media=open(image, "rb"), caption=text)
-                await callback.message.edit_media(media=photo, reply_markup=back_kb())
-            else:
-                await callback.message.edit_text(text=text, reply_markup=back_kb())
+            await callback.message.delete()
         except Exception:
-            try:
-                await callback.message.edit_text(text=text, reply_markup=back_kb())
-            except Exception:
-                pass
+            pass
+        try:
+            if image:
+                await callback.message.answer_photo(
+                    photo=open(image, "rb"),
+                    caption=text,
+                    reply_markup=back_kb()
+                )
+            else:
+                await callback.message.answer(text=text, reply_markup=back_kb())
+        except Exception:
+            await callback.message.answer(text=text, reply_markup=back_kb())
         return
 
     if data == "game_select":
         if platform == "jai":
-            image = img("wingo.png")
             text = box("🎮 JAI CLUB GAMES", "Select game type:")
             kb = game_menu_kb_jai()
         else:
-            image = img("wingo.png")
             text = box("🎮 51GAME GAMES", "Select game type:")
             kb = game_menu_kb_51()
 
         try:
-            if image:
-                photo = InputMediaPhoto(media=open(image, "rb"), caption=text)
-                await callback.message.edit_media(media=photo, reply_markup=kb)
-            else:
-                await callback.message.edit_text(text=text, reply_markup=kb)
-        except Exception:
             await callback.message.edit_text(text=text, reply_markup=kb)
+        except Exception:
+            pass
         return
 
     if data in ["game_30s", "game_1m"]:
@@ -739,24 +731,16 @@ async def run_betting_jai(user_id, chat_id, user_data):
                     if pct >= profit_target and not bot_state["target_hit"]:
                         bot_state["target_hit"] = True
                         try:
-                            target_img = img("target.png")
                             target_text = box("🎉🎉🎉 TARGET REACHED! 🎉🎉🎉", (
                                 f"🎯 <b>Target:</b> <code>{profit_target}%</code> ✅\n"
                                 f"💰 <b>Profit:</b> <code>+₹{bot_state['profit']:.2f}</code>\n"
                                 f"📈 <b>Profit %:</b> <code>+{pct:.1f}%</code>\n\n"
                                 "Congratulations! Keep going or stop with /stop"
                             ))
-                            if target_img:
-                                with open(target_img, "rb") as tf:
-                                    await bot.send_photo(chat_id, photo=tf, caption=target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                        [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
-                                        [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
-                                    ]))
-                            else:
-                                await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                    [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
-                                    [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
-                                ]))
+                            await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                                [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
+                                [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
+                            ]))
                         except Exception as e:
                             logger.error(f"Target celebration error: {e}")
 
@@ -895,24 +879,16 @@ async def run_betting_51(user_id, chat_id, user_data):
                     if pct >= profit_target and not bot_state["target_hit"]:
                         bot_state["target_hit"] = True
                         try:
-                            target_img = img("target.png")
                             target_text = box("🎉🎉🎉 TARGET REACHED! 🎉🎉🎉", (
                                 f"🎯 <b>Target:</b> <code>{profit_target}%</code> ✅\n"
                                 f"💰 <b>Profit:</b> <code>+₹{bot_state['profit']:.2f}</code>\n"
                                 f"📈 <b>Profit %:</b> <code>+{pct:.1f}%</code>\n\n"
                                 "Congratulations! Keep going or stop with /stop"
                             ))
-                            if target_img:
-                                with open(target_img, "rb") as tf:
-                                    await bot.send_photo(chat_id, photo=tf, caption=target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                        [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
-                                        [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
-                                    ]))
-                            else:
-                                await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                    [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
-                                    [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
-                                ]))
+                            await bot.send_message(chat_id, target_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                                [InlineKeyboardButton(text="🛑 STOP BOT", callback_data="confirm_stop")],
+                                [InlineKeyboardButton(text="▶ CONTINUE", callback_data="back_menu")]
+                            ]))
                         except Exception as e:
                             logger.error(f"Target celebration error: {e}")
 
