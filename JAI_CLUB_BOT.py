@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Jai Club / AR Lottery Auto‑Bet CLI (Dual Level Engine – BN Last King Logic)
+Jai Club / AR Lottery Autoâ€‘Bet CLI (Dual Level Engine â€“ BN Last King Logic)
 
 - Full AccountChecker for login & betting
 - Manual balance entry if API returns 0
 - Dual bet: half on Color, half on Big/Small
-- Level staking: double loss → next level, break‑even → repeat, double win → reset
-- 1‑second polling, real open issue fetch
+- Level staking: double loss â†’ next level, breakâ€‘even â†’ repeat, double win â†’ reset
+- 1â€‘second polling, real open issue fetch
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ except ImportError:
     print("Install missing libraries: pip install requests urllib3 pillow")
     raise
 
-# ── Colors ───────────────────────────────────────────────────
+# â”€â”€ Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 RESET = "\033[0m"
 BOLD = "\033[1m"
 RED = "\033[31m"
@@ -52,7 +52,7 @@ NEON_CYAN = "\033[96m"
 def col(text, code):
     return f"{code}{text}{RESET}" if sys.stdout.isatty() else text
 
-# ── Constants ────────────────────────────────────────────────
+# â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 GAME_CODES = {"1": "WinGo_30S", "2": "WinGo_1M"}
 DEFAULT_BASE_TOTAL_BET = 2
 DEFAULT_CONFIDENCE = 55          # percent
@@ -69,7 +69,7 @@ LOTTERY_AUTH_MODES = ("bearer", "authorization", "token", "x-token", "token-lowe
 logging.basicConfig(level=logging.INFO)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ── AccountChecker ───────────────────────────────────────────
+# â”€â”€ AccountChecker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AccountChecker:
     def __init__(self, username: str, password: str):
         self.username = username.strip()
@@ -123,14 +123,13 @@ class AccountChecker:
         )
 
     def update_lottery_headers(self) -> None:
-        origin = self.lottery_api_base_url.rstrip("/")
         self.client.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/json;charset=UTF-8",
-                "Origin": origin,
-                "Referer": f"{origin}/",
+                "Origin": "https://h5.ar-lottery06.com",
+                "Referer": "https://h5.ar-lottery06.com/",
                 "Connection": "keep-alive",
             }
         )
@@ -513,25 +512,6 @@ class AccountChecker:
             self.lottery_draw_base_url = origin.replace("h5.", "draw.")
         return {"token": token, "lang": lang, "skin": skin, "url": launch_url or "", "apiBase": self.lottery_api_base_url, "drawBase": self.lottery_draw_base_url}
 
-    def bootstrap_lottery_session(self, launch_url: str) -> None:
-        if not launch_url:
-            return
-        try:
-            self.update_lottery_headers()
-            self.client.headers.update(
-                {
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Upgrade-Insecure-Requests": "1",
-                }
-            )
-            self.client.get(launch_url, timeout=self.timeout, allow_redirects=True, verify=self.verify_ssl)
-            self.client.get(f"{self.lottery_api_base_url}/", timeout=self.timeout, allow_redirects=True, verify=self.verify_ssl)
-        except Exception:
-            pass
-        finally:
-            self.update_lottery_headers()
-
     def fetch_ar_token(self, game_code="WinGo_30S"):
         payloads = [
             {"gameCode": game_code, "vendorCode": "ARLottery", "returnUrl": self.base_url, "deviceType": 1},
@@ -550,7 +530,6 @@ class AccountChecker:
                     if launch_data["token"]:
                         self.ar_token = launch_data["token"]
                         self.ar_launch_url = launch_url
-                        self.bootstrap_lottery_session(launch_url)
                         return launch_data
             except Exception:
                 pass
@@ -568,20 +547,29 @@ class AccountChecker:
         for token in [self.ar_token, self.jwt_token] + self.auth_token_candidates:
             if token and token not in token_candidates:
                 token_candidates.append(token)
+        last_error = None
         for token in token_candidates:
             for auth_mode in self.lottery_auth_mode_order():
                 self.attach_token(token, auth_mode)
-                response = request_factory()
-                if response.status_code == 401:
+                try:
+                    response = request_factory()
+                except Exception as e:
+                    last_error = e
                     continue
-                data = self.parse_json_response(response, api_name)
+                if response.status_code == 401 or response.status_code == 403:
+                    continue
+                try:
+                    data = self.parse_json_response(response, api_name)
+                except RuntimeError as e:
+                    last_error = e
+                    continue
                 msg = str(data.get("msg", "")).lower()
                 if data.get("code") in {401, 4010} or "unauthor" in msg or ("token" in msg and "invalid" in msg):
                     continue
                 self.jwt_token = token
                 self.lottery_auth_mode = auth_mode
                 return response, data
-        raise RuntimeError(f"{api_name}: All tokens rejected.")
+        raise RuntimeError(f"{api_name}: All tokens rejected. Last error: {last_error}")
 
     def place_wingo_bet(self, issue_number, amount, bet_multiple, bet_content, game_code="WinGo_30S", language="en"):
         payload = {
@@ -593,53 +581,16 @@ class AccountChecker:
             "language": language,
             "random": random.randint(100000000000, 999999999999),
         }
-        payload = self.generate_ar_signature_payload(payload)
-        last_error = None
-
-        for attempt in range(2):
-            launch = self.fetch_ar_token(game_code)
-            ar_token = launch["token"]
-            lottery_api = launch["apiBase"]
-            bare_token = ar_token[7:].strip() if ar_token.lower().startswith("bearer ") else ar_token
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Content-Type": "application/json;charset=UTF-8",
-                "Authorization": f"Bearer {bare_token}",
-                "Origin": lottery_api,
-                "Referer": f"{lottery_api}/",
-                "X-Requested-With": "XMLHttpRequest",
-            }
-            try:
-                self.client.headers.clear()
-                self.client.headers.update(headers)
-                response = self.client.post(
-                    f"{lottery_api}/api/Lottery/WinGoBet",
-                    json=payload,
-                    timeout=15,
-                    verify=False,
-                    allow_redirects=True,
-                )
-                data = self.parse_json_response(response, "WinGoBet")
-                if response.status_code == 200 and data.get("code") == 0:
-                    self.ar_token = ar_token
-                    self.lottery_api_base_url = lottery_api.rstrip("/")
-                    return data
-                last_error = RuntimeError(data.get("msg") or f"WinGoBet failed with HTTP {response.status_code}")
-                if response.status_code not in {401, 403}:
-                    break
-            except Exception as exc:
-                last_error = exc
-            time.sleep(0.2)
-
-        raise RuntimeError(str(last_error or "WinGoBet failed"))
+        response, data = self.run_lottery_request("WinGoBet", lambda: self.post_lottery_api("/api/Lottery/WinGoBet", payload))
+        if response.status_code != 200 or data.get("code") != 0:
+            raise RuntimeError(data.get("msg") or "WinGoBet failed")
+        return data
 
     def close(self):
         self.client.close()
 
 
-# ── SIMPLE PREDICTION SYSTEM ──────────────────────────────
+# â”€â”€ SIMPLE PREDICTION SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def predict_bs(pattern):
     """
     Predict Big/Small based on last 6 results
@@ -791,7 +742,7 @@ def calc_confidence(bs_rule, color_rule):
     return min(conf, 95)
 
 
-# ── Level Calculator ────────────────────────────────────────
+# â”€â”€ Level Calculator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def make_levels(balance, start_total, multiplier):
     levels = []
     per_market = max(1, math.ceil(start_total / 2))
@@ -814,7 +765,7 @@ def make_levels(balance, start_total, multiplier):
     return levels
 
 
-# ── AutoBet Engine ──────────────────────────────────────────
+# â”€â”€ AutoBet Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class AutoBetEngine:
     def __init__(self, username, password, game_code, total_bet, multiplier, confidence_pct):
         self.username = username; self.password = password
@@ -860,68 +811,51 @@ class AutoBetEngine:
 
     def fetch_open_issue(self):
         """Return the currently open issue number (the one you can bet on)."""
+        draw_urls = [
+            os.environ.get("JAI_LOTTERY_DRAW_BASE_URL", "https://draw.ar-lottery06.com").rstrip("/"),
+            "https://draw.ar-lottery01.com",
+        ]
+        for base in draw_urls:
+            try:
+                url = f"{base}/WinGo/{self.game_code}/GetCurrentIssue.json"
+                resp = requests.get(url, timeout=5, verify=False)
+                data = resp.json()
+                if data.get("code") == 0 and "data" in data:
+                    return str(data["data"]["issueNumber"])
+            except: pass
         issues = self.fetch_draw_history(1)
         if issues:
             last = issues[0]["issueNumber"]
             prefix = last[:-3]; num = int(last[-3:]) + 1
             return f"{prefix}{num:03d}"
-        data = self._fetch_draw_json("GetCurrentIssue.json", timeout=5)
-        if data and data.get("code") == 0 and "data" in data:
-            return str(data["data"]["issueNumber"])
-        return None
-
-    def _draw_base_urls(self):
-        seen = set()
-        bases = [
-            self.checker.lottery_draw_base_url,
-            "https://draw.ar-lottery06.com",
-            "https://draw.ar-lottery01.com",
-        ]
-        for base in bases:
-            base = (base or "").rstrip("/")
-            if not base or base in seen:
-                continue
-            seen.add(base)
-            yield base
-
-    def _fetch_draw_json(self, endpoint, timeout=6):
-        self.checker.update_lottery_headers()
-        last_error = None
-        for base in self._draw_base_urls():
-            url = f"{base}/WinGo/{self.game_code}/{endpoint}"
-            try:
-                resp = self.checker.client.get(url, timeout=timeout, verify=False)
-                resp.raise_for_status()
-                if not resp.text.strip():
-                    raise ValueError("empty response body")
-                data = resp.json()
-                if data.get("code") == 0:
-                    return data
-                last_error = RuntimeError(f"{url} returned code={data.get('code')} msg={data.get('msg')}")
-            except Exception as exc:
-                last_error = RuntimeError(f"{url} -> {exc}")
-                continue
-        if last_error:
-            logging.error("draw endpoint failed: %s", last_error)
         return None
 
     def fetch_draw_history(self, page_size=6):
-        endpoint = f"GetHistoryIssuePage.json?pageSize={page_size}&pageNo=1"
-        data = self._fetch_draw_json(endpoint, timeout=6)
-        if data and data.get("code") == 0:
-            issues = data["data"]["list"]
-            issues.sort(key=lambda x: x["issueNumber"], reverse=True)
-            return issues
+        draw_urls = [
+            os.environ.get("JAI_LOTTERY_DRAW_BASE_URL", "https://draw.ar-lottery06.com").rstrip("/"),
+            "https://draw.ar-lottery01.com",
+        ]
+        for base in draw_urls:
+            try:
+                url = f"{base}/WinGo/{self.game_code}/GetHistoryIssuePage.json?pageSize={page_size}&pageNo=1"
+                resp = requests.get(url, timeout=6, verify=False)
+                data = resp.json()
+                if data.get("code") == 0:
+                    issues = data["data"]["list"]
+                    issues.sort(key=lambda x: x["issueNumber"], reverse=True)
+                    return issues
+            except Exception as e: logging.error("draw history (%s): %s", base, e)
         return []
 
     def place_dual_bet(self, issue, bs_side, color_side, bs_bet, color_bet):
-        while True:
+        max_retries = 5
+        for attempt in range(max_retries):
             try:
                 self.checker.place_wingo_bet(issue, bs_bet, 1, f"BigSmall_{bs_side.capitalize()}", self.game_code)
                 self.checker.place_wingo_bet(issue, color_bet, 1, f"Color_{color_side.capitalize()}", self.game_code)
                 return
             except Exception as e:
-                if "does not exist" in str(e).lower():
+                if "does not exist" in str(e).lower() or "not open" in str(e).lower():
                     print(col(f"Issue {issue} not open yet, retrying in 1s...", YELLOW))
                     time.sleep(1)
                     issue = self.fetch_open_issue()
@@ -929,7 +863,8 @@ class AutoBetEngine:
                         raise RuntimeError("Cannot find valid open issue")
                     continue
                 else:
-                    raise
+                    raise RuntimeError(f"Betting failed after {attempt+1} attempts: {e}")
+        raise RuntimeError(f"Betting failed after {max_retries} retries")
 
     def evaluate_pending(self, actual_period, actual_num):
         if not self.pending or str(self.pending["period"]) != str(actual_period):
@@ -939,11 +874,11 @@ class AutoBetEngine:
         bs_match = self.pending["bs_prediction"] == actual_bs
         color_match = self.pending["color_prediction"] == actual_color
         if bs_match and color_match:
-            result = "DOUBLE WIN ✅✅"; self.double_win += 1; self.current_level = 0
+            result = "DOUBLE WIN âœ…âœ…"; self.double_win += 1; self.current_level = 0
         elif bs_match or color_match:
-            result = "BREAK EVEN ✅❌"; self.break_even += 1
+            result = "BREAK EVEN âœ…âŒ"; self.break_even += 1
         else:
-            result = "DOUBLE LOSS ❌❌"; self.double_loss += 1; self.current_level += 1
+            result = "DOUBLE LOSS âŒâŒ"; self.double_loss += 1; self.current_level += 1
             if self.current_level >= len(self.levels):
                 self.stopped = True; self.status = "LEVEL FINISHED - STOP"
         rec = {
@@ -1015,7 +950,7 @@ class AutoBetEngine:
                         "bs_prediction": bs_pred, "color_prediction": co_pred,
                         "bs_rule": bs_rule, "color_rule": co_rule, "confidence": conf
                     }
-                    print(col(f"⚡ Bet placed on {open_issue[-12:]} → {bs_pred}/{co_pred} (L{lv['level']}, total {lv['total_bet']})", CYAN))
+                    print(col(f"âš¡ Bet placed on {open_issue[-12:]} â†’ {bs_pred}/{co_pred} (L{lv['level']}, total {lv['total_bet']})", CYAN))
 
                 if self.start_balance > 0 and (self.net_profit / self.start_balance)*100 >= PROFIT_TARGET_PCT:
                     print(col(f"Profit target {PROFIT_TARGET_PCT}% reached. Stopping.", GREEN)); break
@@ -1031,17 +966,17 @@ class AutoBetEngine:
 
     def print_header(self):
         print(col("""
-   ▄████████    ▄████████ ████████▄     ▄████████ 
-  ███    ███   ███    ███ ███   ▀███   ███    ███ 
-  ███    █▀    ███    ███ ███    ███   ███    █▀  
-  ███         ▄███▄▄▄▄██▀ ███    ███  ▄███        
-▀███████████ ▀▀███▀▀▀▀▀   ███    ███ ▀▀███ ████▄  
-         ███ ▀███████████ ███    ███   ███    ███ 
-   ▄█    ███   ███    ███ ███   ▄███   ███    ███ 
- ▄████████▀    ███    ███ ████████▀    ██████████  
-               ███    ███                         
+   â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ    â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–„     â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ 
+  â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ   â–€â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
+  â–ˆâ–ˆâ–ˆ    â–ˆâ–€    â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–€  
+  â–ˆâ–ˆâ–ˆ         â–„â–ˆâ–ˆâ–ˆâ–„â–„â–„â–„â–ˆâ–ˆâ–€ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ  â–„â–ˆâ–ˆâ–ˆ        
+â–€â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–€â–€â–ˆâ–ˆâ–ˆâ–€â–€â–€â–€â–€   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–€â–€â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–„  
+         â–ˆâ–ˆâ–ˆ â–€â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
+   â–„â–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ   â–„â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
+ â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–€    â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–€    â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ  
+               â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ                         
 """, NEON_CYAN))
-        print(col("     JAI CLUB AUTO BET – DUAL LEVEL ENGINE", NEON_MAGENTA+BOLD))
+        print(col("     JAI CLUB AUTO BET â€“ DUAL LEVEL ENGINE", NEON_MAGENTA+BOLD))
         print(col(f"     Game: {self.game_code} | Start Total Bet: {self.start_total_bet} | Mult: {self.multiplier}x | Min Conf: {self.confidence_pct}%", YELLOW))
         print(col("="*110, CYAN))
         print(f"{'Period':<15}{'Prediction':<22}{'Bet':<12}{'Actual':<18}{'Result':<24}{'Balance':<12}")
@@ -1055,9 +990,9 @@ class AutoBetEngine:
         print(col(line, clr))
 
 
-# ── Main ────────────────────────────────────────────────────
+# â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def main():
-    print(col("Jai Club Dual Level Engine – BN Last King Patterns", CYAN+BOLD))
+    print(col("Jai Club Dual Level Engine â€“ BN Last King Patterns", CYAN+BOLD))
     username = input("Username/Mobile: ").strip()
     password = getpass.getpass("Password: ")
     if not username or not password:
