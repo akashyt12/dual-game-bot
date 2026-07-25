@@ -40,6 +40,7 @@ _user_states = {}
 _active_bots = {}
 _profit_messages = {}
 _rate_limits = {}
+_last_bot_msg = {}
 
 # ============================================
 # STORAGE
@@ -129,6 +130,17 @@ def check_rate_limit(user_id, action, cooldown=1.0):
         return False
     _rate_limits[key] = now
     return True
+
+async def send_or_edit(chat_id, user_id, text, reply_markup=None, parse_mode="HTML"):
+    old_msg_id = _last_bot_msg.get(user_id)
+    if old_msg_id:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
+        except Exception:
+            pass
+    msg = await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+    _last_bot_msg[user_id] = msg.message_id
+    return msg
 
 def has_access(user_data):
     if user_data.get("is_admin"):
@@ -850,7 +862,7 @@ async def handle_callbacks(callback: CallbackQuery):
                 "Then enter balance to start"
             ) + footer()
         else:
-            img_f = "game_icon.png"
+            img_f = "game51.png"
             text = box("\U0001F3AF 51GAME SELECTED",
                 "<b>WinGo 30S / 1M / 3M / 5M</b>\n\n"
                 "Type <b>/login</b> to authenticate\n"
@@ -1086,14 +1098,14 @@ async def handle_text(message: Message):
             _user_states.pop(user_id, None)
             lines = text.split("\n")
             if len(lines) < 2:
-                await message.answer("Format:\n<code>name\n@username</code>")
+                await send_or_edit(message.chat.id, user_id, "Format:\n<code>name\n@username</code>")
                 return
             ch_name = lines[0].strip()
             ch_id = lines[1].strip()
             channels = get_channels()
             channels[ch_name] = ch_id
             save_channels(channels)
-            await message.answer(box("\u2705 CHANNEL ADDED", f"<b>{ch_name}</b>: <code>{ch_id}</code>") + footer(), reply_markup=admin_kb())
+            await send_or_edit(message.chat.id, user_id, box("\u2705 CHANNEL ADDED", f"<b>{ch_name}</b>: <code>{ch_id}</code>") + footer(), reply_markup=admin_kb())
             return
 
         if state == "admin_addpts":
@@ -1106,9 +1118,9 @@ async def handle_text(message: Message):
                     ud = get_user(uid)
                     ud["points"] = ud.get("points", 0) + amt
                     update_user(uid, ud)
-                    await message.answer(box("\u2705 DONE", f"Added {amt} to <code>{uid}</code>\nTotal: {ud['points']}") + footer())
+                    await send_or_edit(message.chat.id, user_id, box("\u2705 DONE", f"Added {amt} to <code>{uid}</code>\nTotal: {ud['points']}") + footer())
                 except (ValueError, IndexError):
-                    await message.answer("Format: user_id amount")
+                    await send_or_edit(message.chat.id, user_id, "Format: user_id amount")
             return
 
         if state == "admin_ban":
@@ -1120,9 +1132,9 @@ async def handle_text(message: Message):
                 update_user(uid, ud)
                 if uid in _active_bots:
                     _active_bots[uid]["running"] = False
-                await message.answer(box("\U0001F6AB BANNED", f"User <code>{uid}</code> banned.") + footer())
+                await send_or_edit(message.chat.id, user_id, box("\U0001F6AB BANNED", f"User <code>{uid}</code> banned.") + footer())
             except ValueError:
-                await message.answer("Send user_id number")
+                await send_or_edit(message.chat.id, user_id, "Send user_id number")
             return
 
         if state == "admin_unban":
@@ -1132,25 +1144,25 @@ async def handle_text(message: Message):
                 ud = get_user(uid)
                 ud["banned"] = False
                 update_user(uid, ud)
-                await message.answer(box("\u2705 UNBANNED", f"User <code>{uid}</code> unbanned.") + footer())
+                await send_or_edit(message.chat.id, user_id, box("\u2705 UNBANNED", f"User <code>{uid}</code> unbanned.") + footer())
             except ValueError:
-                await message.answer("Send user_id number")
+                await send_or_edit(message.chat.id, user_id, "Send user_id number")
             return
 
     # ---- LOGIN STATE ----
     if state == "login":
         if points_finished(user_data) and not admin:
             _user_states.pop(user_id, None)
-            await message.answer(box("\U0001F4B0 NO POINTS", "Get referrals!") + footer(), reply_markup=referral_only_kb(user_id))
+            await send_or_edit(message.chat.id, user_id, box("\U0001F4B0 NO POINTS", "Get referrals!") + footer(), reply_markup=referral_only_kb(user_id))
             return
         lines = text.split("\n")
         if len(lines) < 2:
-            await message.answer(box("\u274C FORMAT", "Send:\n<code>username\npassword</code>") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C FORMAT", "Send:\n<code>username\npassword</code>") + footer())
             return
         username = lines[0].strip()[:50]
         password = lines[1].strip()[:50]
         if not username or not password:
-            await message.answer(box("\u274C EMPTY", "Cannot be empty") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C EMPTY", "Cannot be empty") + footer())
             return
         user_data["login_user"] = username
         user_data["login_pass"] = password
@@ -1159,21 +1171,21 @@ async def handle_text(message: Message):
         _user_states[user_id] = "set_amount"
         platform = user_data.get("platform", "jai")
         pn = "JAI CLUB" if platform == "jai" else "51GAME"
-        await message.answer(text=box("\U0001F4B0 SET BALANCE", f"<b>{pn}</b>\nEnter balance:\n<code>5000</code>") + footer())
+        await send_or_edit(message.chat.id, user_id, text=box("\U0001F4B0 SET BALANCE", f"<b>{pn}</b>\nEnter balance:\n<code>5000</code>") + footer())
         return
 
     if state == "set_amount":
         try:
             amount = max(100, int(text))
         except ValueError:
-            await message.answer(box("\u274C INVALID", "Enter a number. Min 100") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C INVALID", "Enter a number. Min 100") + footer())
             return
         user_data["start_balance"] = amount
         update_user(user_id, user_data)
         _user_states.pop(user_id, None)
         platform = user_data.get("platform", "jai")
         pn = "JAI CLUB" if platform == "jai" else "51GAME"
-        await message.answer(text=box("\u2705 READY", f"<b>{pn}</b> | Balance: {amount}\nStarting...") + footer(), reply_markup=main_menu_kb())
+        await send_or_edit(message.chat.id, user_id, text=box("\u2705 READY", f"<b>{pn}</b> | Balance: {amount}\nStarting...") + footer(), reply_markup=main_menu_kb())
         user_data = get_user(user_id)
         asyncio.create_task(run_betting(user_id, message.chat.id, user_data))
         return
@@ -1182,36 +1194,36 @@ async def handle_text(message: Message):
         try:
             bet = max(2, int(text))
         except ValueError:
-            await message.answer(box("\u274C INVALID", "Enter a number. Min 2") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C INVALID", "Enter a number. Min 2") + footer())
             return
         user_data["total_bet"] = bet
         update_user(user_id, user_data)
         _user_states.pop(user_id, None)
-        await message.answer(text=box("\u2705 BET SET", f"<b>{bet}</b>") + footer(), reply_markup=main_menu_kb())
+        await send_or_edit(message.chat.id, user_id, text=box("\u2705 BET SET", f"<b>{bet}</b>") + footer(), reply_markup=main_menu_kb())
         return
 
     if state == "set_mult":
         try:
             mult = max(1.5, float(text))
         except ValueError:
-            await message.answer(box("\u274C INVALID", "Enter a number. Min 1.5") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C INVALID", "Enter a number. Min 1.5") + footer())
             return
         user_data["multiplier"] = mult
         update_user(user_id, user_data)
         _user_states.pop(user_id, None)
-        await message.answer(text=box("\u2705 MULTIPLIER SET", f"<b>{mult}x</b>") + footer(), reply_markup=main_menu_kb())
+        await send_or_edit(message.chat.id, user_id, text=box("\u2705 MULTIPLIER SET", f"<b>{mult}x</b>") + footer(), reply_markup=main_menu_kb())
         return
 
     if state == "set_target":
         try:
             target = max(5, min(500, float(text)))
         except ValueError:
-            await message.answer(box("\u274C INVALID", "Enter 5-500") + footer())
+            await send_or_edit(message.chat.id, user_id, box("\u274C INVALID", "Enter 5-500") + footer())
             return
         user_data["profit_target"] = target
         update_user(user_id, user_data)
         _user_states.pop(user_id, None)
-        await message.answer(text=box("\u2705 TARGET SET", f"<b>{target}%</b>") + footer(), reply_markup=main_menu_kb())
+        await send_or_edit(message.chat.id, user_id, text=box("\u2705 TARGET SET", f"<b>{target}%</b>") + footer(), reply_markup=main_menu_kb())
         return
 
 # ============================================
