@@ -513,6 +513,25 @@ class AccountChecker:
             self.lottery_draw_base_url = origin.replace("h5.", "draw.")
         return {"token": token, "lang": lang, "skin": skin, "url": launch_url or "", "apiBase": self.lottery_api_base_url, "drawBase": self.lottery_draw_base_url}
 
+    def bootstrap_lottery_session(self, launch_url: str) -> None:
+        if not launch_url:
+            return
+        try:
+            self.update_lottery_headers()
+            self.client.headers.update(
+                {
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Upgrade-Insecure-Requests": "1",
+                }
+            )
+            self.client.get(launch_url, timeout=self.timeout, allow_redirects=True, verify=self.verify_ssl)
+            self.client.get(f"{self.lottery_api_base_url}/", timeout=self.timeout, allow_redirects=True, verify=self.verify_ssl)
+        except Exception:
+            pass
+        finally:
+            self.update_lottery_headers()
+
     def fetch_ar_token(self, game_code="WinGo_30S"):
         payloads = [
             {"gameCode": game_code, "vendorCode": "ARLottery", "returnUrl": self.base_url, "deviceType": 1},
@@ -531,6 +550,7 @@ class AccountChecker:
                     if launch_data["token"]:
                         self.ar_token = launch_data["token"]
                         self.ar_launch_url = launch_url
+                        self.bootstrap_lottery_session(launch_url)
                         return launch_data
             except Exception:
                 pass
@@ -584,18 +604,22 @@ class AccountChecker:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
                 "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
                 "Content-Type": "application/json;charset=UTF-8",
                 "Authorization": f"Bearer {bare_token}",
                 "Origin": lottery_api,
                 "Referer": f"{lottery_api}/",
+                "X-Requested-With": "XMLHttpRequest",
             }
             try:
-                response = requests.post(
+                self.client.headers.clear()
+                self.client.headers.update(headers)
+                response = self.client.post(
                     f"{lottery_api}/api/Lottery/WinGoBet",
                     json=payload,
-                    headers=headers,
                     timeout=15,
                     verify=False,
+                    allow_redirects=True,
                 )
                 data = self.parse_json_response(response, "WinGoBet")
                 if response.status_code == 200 and data.get("code") == 0:
