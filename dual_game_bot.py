@@ -28,7 +28,10 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 
-BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
+BOT_TOKEN = os.environ.get(
+    "BOT_TOKEN",
+    "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4",
+).strip()
 CHANNEL_ID = "@JaiClubOfficial"
 CHANNEL_URL = "https://t.me/JaiClubOfficial"
 BASE_DIR = Path(__file__).resolve().parent
