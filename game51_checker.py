@@ -552,6 +552,9 @@ class Game51AccountChecker:
         ar_token = lottery["token"]
         lottery_api = lottery["lottery_api"]
 
+        auth_modes = ["bearer", "authorization", "token", "x-token"]
+        fallback_urls = [lottery_api, "https://h5.ar-lottery06.com"]
+
         results = {}
         for label, amount, content in [("bs", bs_bet, bs_content), ("color", color_bet, color_content)]:
             payload = {
@@ -563,31 +566,47 @@ class Game51AccountChecker:
                 "language": "en",
                 "random": random.randint(100000000000, 999999999999),
             }
-            signed = self.generate_ar_signature_payload(payload)
 
-            try:
-                self.update_headers()
-                self.client.headers["Authorization"] = f"Bearer {ar_token}"
-                self.client.headers["Origin"] = lottery_api
-                self.client.headers["Referer"] = f"{lottery_api}/"
-                resp = self.client.post(
-                    f"{lottery_api}/api/Lottery/WinGoBet",
-                    json=signed, timeout=10, allow_redirects=True, verify=False,
-                )
-                if resp.status_code == 401:
-                    lottery = self.fetch_lottery_token(game_code, force=True)
-                    ar_token = lottery["token"]
-                    lottery_api = lottery["lottery_api"]
-                    self.client.headers["Authorization"] = f"Bearer {ar_token}"
+            bet_result = None
+            for base_url in fallback_urls:
+                if bet_result is not None:
+                    break
+                for attempt in range(2):
+                    if attempt > 0:
+                        lottery = self.fetch_lottery_token(game_code, force=True)
+                        ar_token = lottery["token"]
+                        base_url = lottery["lottery_api"]
                     signed = self.generate_ar_signature_payload(payload)
-                    resp = self.client.post(
-                        f"{lottery_api}/api/Lottery/WinGoBet",
-                        json=signed, timeout=10, allow_redirects=True, verify=False,
-                    )
-                data = self.parse_json_response(resp, "WinGoBet")
-                results[label] = data
-            except Exception as e:
-                results[label] = {"error": str(e)}
+                    for auth_mode in auth_modes:
+                        try:
+                            self.update_headers()
+                            token_val = ar_token.replace("Bearer ", "") if ar_token.lower().startswith("bearer ") else ar_token
+                            if auth_mode == "bearer":
+                                self.client.headers["Authorization"] = f"Bearer {token_val}"
+                            elif auth_mode == "authorization":
+                                self.client.headers["Authorization"] = token_val
+                            elif auth_mode == "token":
+                                self.client.headers["Token"] = token_val
+                            elif auth_mode == "x-token":
+                                self.client.headers["X-Token"] = token_val
+                            self.client.headers["Origin"] = base_url
+                            self.client.headers["Referer"] = f"{base_url}/"
+                            resp = self.client.post(
+                                f"{base_url}/api/Lottery/WinGoBet",
+                                json=signed, timeout=10, allow_redirects=True, verify=False,
+                            )
+                            if resp.status_code == 403:
+                                logger.warning("51GAME 403 on %s mode=%s, trying next", base_url, auth_mode)
+                                continue
+                            if resp.status_code == 401:
+                                break
+                            data = self.parse_json_response(resp, "WinGoBet")
+                            bet_result = data
+                            break
+                        except Exception as e:
+                            logger.error("51GAME bet attempt error: %s", e)
+                            continue
+            results[label] = bet_result or {"error": "All bet attempts failed"}
             time.sleep(0.1)
 
         return results
