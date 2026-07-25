@@ -28,24 +28,17 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 
-BOT_TOKEN = os.environ.get(
-    "BOT_TOKEN",
-    "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4",
-).strip()
+BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
 CHANNEL_ID = "@JaiClubOfficial"
 CHANNEL_URL = "https://t.me/JaiClubOfficial"
-BASE_DIR = Path(__file__).resolve().parent
-IMAGES_DIR = BASE_DIR / "images"
+IMAGES_DIR = Path("/home/akash/mimo-test/images")
 
+BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
 LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+LOG_DIR.mkdir(exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stdout,
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -55,27 +48,14 @@ user_states = {}
 active_bots = {}
 profit_messages = {}
 
-
-def ui(text: str) -> str:
-    if not isinstance(text, str):
-        return text
-    try:
-        return text.encode("latin1").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text
-
-
-def kb_button(text: str, callback_data: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text=ui(text), callback_data=callback_data)
-
 def load_users():
     if USERS_FILE.exists():
-        with open(USERS_FILE, encoding="utf-8") as f:
+        with open(USERS_FILE) as f:
             return json.load(f)
     return {}
 
 def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
+    with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=2)
 
 def get_user(user_id):
@@ -92,71 +72,71 @@ def update_user(user_id, data):
 
 def platform_select_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [kb_button("ðŸŽ° JAI CLUB", "platform_jai")],
-        [kb_button("ðŸŽ¯ 51GAME", "platform_51")],
+        [InlineKeyboardButton(text="Ã°Å¸Å½Â° JAI CLUB", callback_data="platform_jai")],
+        [InlineKeyboardButton(text="Ã°Å¸Å½Â¯ 51GAME", callback_data="platform_51")],
     ])
 
 def main_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            kb_button("â–¶ï¸ START BOT", "start_bot"),
-            kb_button("ðŸ“Š STATUS", "status"),
+            InlineKeyboardButton(text="Ã¢â€“Â¶Ã¯Â¸Â START BOT", callback_data="start_bot"),
+            InlineKeyboardButton(text="Ã°Å¸â€œÅ  STATUS", callback_data="status"),
         ],
         [
-            kb_button("ðŸ’° PROFIT", "profit"),
-            kb_button("âš™ï¸ SETTINGS", "settings"),
+            InlineKeyboardButton(text="Ã°Å¸â€™Â° PROFIT", callback_data="profit"),
+            InlineKeyboardButton(text="Ã¢Å¡â„¢Ã¯Â¸Â SETTINGS", callback_data="settings"),
         ],
         [
-            kb_button("ðŸŽ¯ GAME", "game_select"),
-            kb_button("ðŸ›‘ STOP", "stop_bot"),
+            InlineKeyboardButton(text="Ã°Å¸Å½Â¯ GAME", callback_data="game_select"),
+            InlineKeyboardButton(text="Ã°Å¸â€ºâ€˜ STOP", callback_data="stop_bot"),
         ],
         [
-            kb_button("ðŸ”„ SWITCH", "switch_platform"),
-            kb_button("â“ HELP", "help"),
+            InlineKeyboardButton(text="Ã°Å¸â€â€ž SWITCH", callback_data="switch_platform"),
+            InlineKeyboardButton(text="Ã¢Ââ€œ HELP", callback_data="help"),
         ],
     ])
 
 def back_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [kb_button("ðŸ”™ BACK", "back_menu")]
+        [InlineKeyboardButton(text="Ã°Å¸â€â„¢ BACK", callback_data="back_menu")]
     ])
 
 def game_menu_kb_jai():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            kb_button("âš¡ 30 SEC", "game_30s"),
-            kb_button("ðŸ”¥ 1 MIN", "game_1m"),
+            InlineKeyboardButton(text="Ã¢Å¡Â¡ 30 SEC", callback_data="game_30s"),
+            InlineKeyboardButton(text="Ã°Å¸â€Â¥ 1 MIN", callback_data="game_1m"),
         ],
-        [kb_button("ðŸ”™ BACK", "back_menu")]
+        [InlineKeyboardButton(text="Ã°Å¸â€â„¢ BACK", callback_data="back_menu")]
     ])
 
 def game_menu_kb_51():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            kb_button("âš¡ 30 SEC", "game51_30"),
-            kb_button("ðŸ”¥ 1 MIN", "game51_1m"),
+            InlineKeyboardButton(text="Ã¢Å¡Â¡ 30 SEC", callback_data="game51_30"),
+            InlineKeyboardButton(text="Ã°Å¸â€Â¥ 1 MIN", callback_data="game51_1m"),
         ],
         [
-            kb_button("ðŸ’Ž 3 MIN", "game51_3m"),
-            kb_button("â­ 5 MIN", "game51_5m"),
+            InlineKeyboardButton(text="Ã°Å¸â€™Å½ 3 MIN", callback_data="game51_3m"),
+            InlineKeyboardButton(text="Ã¢Â­Â 5 MIN", callback_data="game51_5m"),
         ],
-        [kb_button("ðŸ”™ BACK", "back_menu")]
+        [InlineKeyboardButton(text="Ã°Å¸â€â„¢ BACK", callback_data="back_menu")]
     ])
 
 def settings_kb(user_data):
     restart = "ON" if user_data.get("auto_restart", True) else "OFF"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [kb_button(f"ðŸ”„ AUTO RESTART: {restart}", "toggle_restart")],
-        [kb_button("ðŸ’° SET BET", "set_bet")],
-        [kb_button("ðŸ“Š SET MULTIPLIER", "set_multiplier")],
-        [kb_button("ðŸ”™ BACK", "back_menu")],
+        [InlineKeyboardButton(text=f"Ã°Å¸â€â€ž AUTO RESTART: {restart}", callback_data="toggle_restart")],
+        [InlineKeyboardButton(text="Ã°Å¸â€™Â° SET BET", callback_data="set_bet")],
+        [InlineKeyboardButton(text="Ã°Å¸â€œÅ  SET MULTIPLIER", callback_data="set_multiplier")],
+        [InlineKeyboardButton(text="Ã°Å¸â€â„¢ BACK", callback_data="back_menu")],
     ])
 
 def stop_confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            kb_button("âœ… YES STOP", "confirm_stop"),
-            kb_button("âŒ NO RUKO", "cancel_stop"),
+            InlineKeyboardButton(text="Ã¢Å“â€¦ YES STOP", callback_data="confirm_stop"),
+            InlineKeyboardButton(text="Ã¢ÂÅ’ NO RUKO", callback_data="cancel_stop"),
         ]
     ])
 
@@ -170,28 +150,28 @@ async def start_command(message: Message):
     name = escape(message.from_user.first_name or "User")
 
     text = f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>   ðŸŽ° DUAL GAME AUTO BOT ðŸŽ°</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>   Ã°Å¸Å½Â° DUAL GAME AUTO BOT Ã°Å¸Å½Â°</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
-ðŸ‘‹ Welcome, <b>{name}</b>!
+Ã°Å¸â€˜â€¹ Welcome, <b>{name}</b>!
 
 <b>Choose Your Platform:</b>
 
-ðŸŽ® <b>JAI CLUB</b> - WinGo 30S/1M
-ðŸŽ¯ <b>51GAME</b> - WinGo 30S/1M/3M/5M
+Ã°Å¸Å½Â® <b>JAI CLUB</b> - WinGo 30S/1M
+Ã°Å¸Å½Â¯ <b>51GAME</b> - WinGo 30S/1M/3M/5M
 
 <b>Features:</b>
-â€¢ ðŸ¤– Auto Prediction
-â€¢ ðŸ’° Dual Bet System
-â€¢ ðŸ“ˆ Level Staking
-â€¢ ðŸ”„ Auto Restart
-â€¢ ðŸ“Š Live Profit
-â€¢ ðŸ–¼ï¸ Images & Updates
+Ã¢â‚¬Â¢ Ã°Å¸Â¤â€“ Auto Prediction
+Ã¢â‚¬Â¢ Ã°Å¸â€™Â° Dual Bet System
+Ã¢â‚¬Â¢ Ã°Å¸â€œË† Level Staking
+Ã¢â‚¬Â¢ Ã°Å¸â€â€ž Auto Restart
+Ã¢â‚¬Â¢ Ã°Å¸â€œÅ  Live Profit
+Ã¢â‚¬Â¢ Ã°Å¸â€“Â¼Ã¯Â¸Â Images & Updates
 
 <i>Niche platform choose karo:</i>
 """
-    await message.answer(text=ui(text), reply_markup=platform_select_kb())
+    await message.answer(text=text, reply_markup=platform_select_kb())
     update_user(user_id, {"name": name, "username": message.from_user.username, "logged_in": False})
 
 # ============================================
@@ -209,41 +189,41 @@ async def handle_platform(callback: CallbackQuery):
     if platform == "jai":
         image_path = IMAGES_DIR / "jaiclub_logo.png"
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸŽ° JAI CLUB SELECTED</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸Å½Â° JAI CLUB SELECTED</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Platform:</b> JAI Club / AR Lottery
 <b>Games:</b> WinGo 30S, 1M
 <b>API:</b> jaiclubapi.com
 
-ðŸ” Login karne ke liye /login type karo.
+Ã°Å¸â€Â Login karne ke liye /login type karo.
 """
     else:
         image_path = IMAGES_DIR / "wingo_icon.png"
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸŽ¯ 51GAME SELECTED</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸Å½Â¯ 51GAME SELECTED</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Platform:</b> 51gamet.com
 <b>Games:</b> WinGo 30S, 1M, 3M, 5M
 <b>API:</b> api51gameapi.com
 
-ðŸ” Login karne ke liye /login type karo.
+Ã°Å¸â€Â Login karne ke liye /login type karo.
 """
 
     try:
         if image_path.exists():
             with open(image_path, "rb") as f:
-                await callback.message.answer_photo(photo=f, caption=ui(text), reply_markup=main_menu_kb())
+                await callback.message.answer_photo(photo=f, caption=text, reply_markup=main_menu_kb())
             await callback.message.delete()
         else:
-            await callback.message.edit_text(text=ui(text), reply_markup=main_menu_kb())
+            await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
     except Exception:
-        await callback.message.edit_text(text=ui(text), reply_markup=main_menu_kb())
+        await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
 
-    await callback.answer(f"âœ… {platform.upper()} selected!")
+    await callback.answer(f"Ã¢Å“â€¦ {platform.upper()} selected!")
 
 # ============================================
 # /login COMMAND
@@ -258,9 +238,9 @@ async def login_command(message: Message):
 
     if platform == "jai":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>       ðŸ” JAI CLUB LOGIN</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>       Ã°Å¸â€Â JAI CLUB LOGIN</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 Apna <b>username</b> aur <b>password</b> daalo:
 
@@ -273,9 +253,9 @@ mypassword123</code>
 """
     else:
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>       ðŸ” 51GAME LOGIN</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>       Ã°Å¸â€Â 51GAME LOGIN</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 Apna <b>phone number</b> aur <b>password</b> daalo:
 
@@ -288,7 +268,7 @@ shiv1234</code>
 
 <i>Note: 91 prefix auto add hoga</i>
 """
-    await message.answer(text=ui(text))
+    await message.answer(text=text)
 
 # ============================================
 # /stop COMMAND
@@ -300,14 +280,14 @@ async def stop_command(message: Message):
     if user_id in active_bots:
         active_bots[user_id]["running"] = False
     text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ›‘ BOT BAND!</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€ºâ€˜ BOT BAND!</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 Bot stop ho gaya.
 Dubara /start se start karo.
 """
-    await message.answer(text=ui(text), reply_markup=main_menu_kb())
+    await message.answer(text=text, reply_markup=main_menu_kb())
 
 # ============================================
 # TEXT MESSAGE HANDLER
@@ -324,7 +304,7 @@ async def handle_text(message: Message):
     if state == "login":
         lines = text.split("\n")
         if len(lines) < 2:
-            await message.answer(ui("âŒ Format sahi se daalo!\n<code>username\npassword</code>"))
+            await message.answer("Ã¢ÂÅ’ Format sahi se daalo!\n<code>username\npassword</code>")
             return
 
         username = lines[0].strip()
@@ -338,9 +318,9 @@ async def handle_text(message: Message):
 
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
         text = f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ’° AMOUNT SET KARO</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€™Â° AMOUNT SET KARO</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Platform:</b> {platform_name}
 Apna total balance daalo:
@@ -348,7 +328,7 @@ Apna total balance daalo:
 
 <i>Amount daalo:</i>
 """
-        await message.answer(text=ui(text))
+        await message.answer(text=text)
         return
 
     if state == "set_amount":
@@ -360,14 +340,14 @@ Apna total balance daalo:
 
             platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
             await message.answer(
-                ui(f"âœ… <b>Platform:</b> {platform_name}\nâœ… <b>Balance:</b> <code>â‚¹{amount}</code>\n\nðŸš€ Bot start ho raha hai..."),
+                f"Ã¢Å“â€¦ <b>Platform:</b> {platform_name}\nÃ¢Å“â€¦ <b>Balance:</b> <code>Ã¢â€šÂ¹{amount}</code>\n\nÃ°Å¸Å¡â‚¬ Bot start ho raha hai...",
                 reply_markup=main_menu_kb()
             )
 
             user_data = get_user(user_id)
             asyncio.create_task(run_betting(user_id, message.chat.id, user_data))
         except:
-            await message.answer(ui("âŒ Number daalo! Min â‚¹100"))
+            await message.answer("Ã¢ÂÅ’ Number daalo! Min Ã¢â€šÂ¹100")
         return
 
     if state == "set_bet":
@@ -376,9 +356,9 @@ Apna total balance daalo:
             user_data["total_bet"] = bet
             update_user(user_id, user_data)
             user_states.pop(user_id, None)
-            await message.answer(ui(f"âœ… Bet Set: â‚¹{bet}"), reply_markup=main_menu_kb())
+            await message.answer(f"Ã¢Å“â€¦ Bet Set: Ã¢â€šÂ¹{bet}", reply_markup=main_menu_kb())
         except:
-            await message.answer(ui("âŒ Number daalo!"))
+            await message.answer("Ã¢ÂÅ’ Number daalo!")
         return
 
     if state == "set_mult":
@@ -387,9 +367,9 @@ Apna total balance daalo:
             user_data["multiplier"] = mult
             update_user(user_id, user_data)
             user_states.pop(user_id, None)
-            await message.answer(ui(f"âœ… Multiplier Set: {mult}x"), reply_markup=main_menu_kb())
+            await message.answer(f"Ã¢Å“â€¦ Multiplier Set: {mult}x", reply_markup=main_menu_kb())
         except:
-            await message.answer(ui("âŒ Number daalo!"))
+            await message.answer("Ã¢ÂÅ’ Number daalo!")
         return
 
 # ============================================
@@ -405,76 +385,69 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "back_menu":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ“‹ MAIN MENU</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€œâ€¹ MAIN MENU</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Choose karo:</i>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=main_menu_kb())
+        await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
         return
 
     if data == "switch_platform":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ”„ SWITCH PLATFORM</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€â€ž SWITCH PLATFORM</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Kaunsa platform?</i>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=platform_select_kb())
+        await callback.message.edit_text(text=text, reply_markup=platform_select_kb())
         return
 
     if data == "start_bot":
         if not user_data.get("logged_in"):
-            await callback.answer(ui("âŒ Pehle /login karo!"), show_alert=True)
+            await callback.answer("Ã¢ÂÅ’ Pehle /login karo!", show_alert=True)
             return
         if not user_data.get("start_balance"):
             user_states[user_id] = "set_amount"
-            await callback.message.edit_text(
-                ui("<b>ðŸ’° AMOUNT SET KARO</b>\n\nBalance daalo:"),
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [kb_button("â—€ï¸ BACK", "back_menu")]
-                    ]
-                ),
-            )
+            await callback.message.edit_text("<b>Ã°Å¸â€™Â° AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Ã¢â€”â‚¬Ã¯Â¸Â BACK", callback_data="back_menu")]])
             return
 
-        await callback.answer(ui("ðŸš€ Bot starting!"))
+        await callback.answer("Ã°Å¸Å¡â‚¬ Bot starting!")
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
         text = f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>    âœ… BOT START HO GAYA!</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>    Ã¢Å“â€¦ BOT START HO GAYA!</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Platform:</b> {platform_name}
-ðŸ“Š Live updates aayenge!
-ðŸ›‘ Rokne ke liye /stop
+Ã°Å¸â€œÅ  Live updates aayenge!
+Ã°Å¸â€ºâ€˜ Rokne ke liye /stop
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=main_menu_kb())
+        await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
         asyncio.create_task(run_betting(user_id, callback.message.chat.id, user_data))
         return
 
     if data == "status":
         bot_data = active_bots.get(user_id, {})
-        running = "ðŸŸ¢ Running" if bot_data.get("running") else "ðŸ”´ Stopped"
+        running = "Ã°Å¸Å¸Â¢ Running" if bot_data.get("running") else "Ã°Å¸â€Â´ Stopped"
         level = bot_data.get("level", 0)
         max_levels = len(bot_data.get("levels", [])) if bot_data.get("levels") else 0
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
 
         text = f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ“Š BOT STATUS</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€œÅ  BOT STATUS</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Platform:</b> {platform_name}
 <b>Status:</b> {running}
-<b>Balance:</b> <code>â‚¹{bot_data.get('balance', 0):.2f}</code>
-<b>Profit:</b> <code>â‚¹{bot_data.get('profit', 0):.2f}</code>
+<b>Balance:</b> <code>Ã¢â€šÂ¹{bot_data.get('balance', 0):.2f}</code>
+<b>Profit:</b> <code>Ã¢â€šÂ¹{bot_data.get('profit', 0):.2f}</code>
 <b>Level:</b> <code>{level}/{max_levels}</code>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=back_kb())
+        await callback.message.edit_text(text=text, reply_markup=back_kb())
         return
 
     if data == "profit":
@@ -483,51 +456,51 @@ async def handle_callbacks(callback: CallbackQuery):
         curr = bot_data.get("balance", 0)
         profit = curr - start
         pct = ((profit / start) * 100) if start > 0 else 0
-        emoji = "ðŸ“ˆ" if profit >= 0 else "ðŸ“‰"
+        emoji = "Ã°Å¸â€œË†" if profit >= 0 else "Ã°Å¸â€œâ€°"
         sign = "+" if profit >= 0 else ""
 
         text = f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ’° LIVE PROFIT</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€™Â° LIVE PROFIT</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
-{emoji} <b>Net Profit:</b> <code>{sign}â‚¹{profit:.2f}</code>
-ðŸ“Š <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>
+{emoji} <b>Net Profit:</b> <code>{sign}Ã¢â€šÂ¹{profit:.2f}</code>
+Ã°Å¸â€œÅ  <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>
 
-âœ… <b>Double Win:</b> <code>{bot_data.get('double_win', 0)}</code>
-âŒ <b>Double Loss:</b> <code>{bot_data.get('double_loss', 0)}</code>
-ðŸŽ¯ <b>Level:</b> <code>{bot_data.get('level', 0)}</code>
+Ã¢Å“â€¦ <b>Double Win:</b> <code>{bot_data.get('double_win', 0)}</code>
+Ã¢ÂÅ’ <b>Double Loss:</b> <code>{bot_data.get('double_loss', 0)}</code>
+Ã°Å¸Å½Â¯ <b>Level:</b> <code>{bot_data.get('level', 0)}</code>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=back_kb())
+        await callback.message.edit_text(text=text, reply_markup=back_kb())
         return
 
     if data == "game_select":
         if platform == "jai":
             text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸŽ® JAI CLUB GAMES</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸Å½Â® JAI CLUB GAMES</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Kaunsa game?</i>
 """
-            await callback.message.edit_text(text=ui(text), reply_markup=game_menu_kb_jai())
+            await callback.message.edit_text(text=text, reply_markup=game_menu_kb_jai())
         else:
             text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸŽ® 51GAME GAMES</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸Å½Â® 51GAME GAMES</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Kaunsa game?</i>
 """
-            await callback.message.edit_text(text=ui(text), reply_markup=game_menu_kb_51())
+            await callback.message.edit_text(text=text, reply_markup=game_menu_kb_51())
         return
 
     if data in ["game_30s", "game_1m"]:
         game = "WinGo_30S" if data == "game_30s" else "WinGo_1M"
         user_data["game"] = game
         update_user(user_id, user_data)
-        await callback.answer(ui(f"âœ… Game: {game}"))
-        await callback.message.edit_text(ui(f"âœ… <b>Game:</b> {game}"), reply_markup=main_menu_kb())
+        await callback.answer(f"Ã¢Å“â€¦ Game: {game}")
+        await callback.message.edit_text(f"Ã¢Å“â€¦ <b>Game:</b> {game}", reply_markup=main_menu_kb())
         return
 
     if data.startswith("game51_"):
@@ -536,88 +509,74 @@ async def handle_callbacks(callback: CallbackQuery):
         user_data["game51_type_id"] = type_id
         update_user(user_id, user_data)
         names = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
-        await callback.answer(ui(f"âœ… Game: {names.get(type_id, '30S')}"))
-        await callback.message.edit_text(ui(f"âœ… <b>Game:</b> WinGo {names.get(type_id, '30S')}"), reply_markup=main_menu_kb())
+        await callback.answer(f"Ã¢Å“â€¦ Game: {names.get(type_id, '30S')}")
+        await callback.message.edit_text(f"Ã¢Å“â€¦ <b>Game:</b> WinGo {names.get(type_id, '30S')}", reply_markup=main_menu_kb())
         return
 
     if data == "stop_bot":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      ðŸ›‘ BAND KARO?</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã°Å¸â€ºâ€˜ BAND KARO?</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Sure hai?</i>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=stop_confirm_kb())
+        await callback.message.edit_text(text=text, reply_markup=stop_confirm_kb())
         return
 
     if data == "confirm_stop":
         if user_id in active_bots:
             active_bots[user_id]["running"] = False
-        await callback.answer(ui("ðŸ›‘ Bot band!"))
+        await callback.answer("Ã°Å¸â€ºâ€˜ Bot band!")
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>    ðŸ”´ BOT BAND HO GAYA!</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>    Ã°Å¸â€Â´ BOT BAND HO GAYA!</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 Dubara /start se start karo.
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=main_menu_kb())
+        await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
         return
 
     if data == "cancel_stop":
-        await callback.answer(ui("âœ… Bot chalu hai!"))
-        await callback.message.edit_text(ui("âœ… Bot chalu hai!"), reply_markup=main_menu_kb())
+        await callback.answer("Ã¢Å“â€¦ Bot chalu hai!")
+        await callback.message.edit_text("Ã¢Å“â€¦ Bot chalu hai!", reply_markup=main_menu_kb())
         return
 
     if data == "settings":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>      âš™ï¸ SETTINGS</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>      Ã¢Å¡â„¢Ã¯Â¸Â SETTINGS</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <i>Badlo:</i>
 """
-        await callback.message.edit_text(text=ui(text), reply_markup=settings_kb(user_data))
+        await callback.message.edit_text(text=text, reply_markup=settings_kb(user_data))
         return
 
     if data == "toggle_restart":
         user_data["auto_restart"] = not user_data.get("auto_restart", True)
         update_user(user_id, user_data)
         status = "ON" if user_data["auto_restart"] else "OFF"
-        await callback.answer(ui(f"âœ… Auto Restart: {status}"))
-        await callback.message.edit_text(ui(f"âœ… <b>Auto Restart:</b> {status}"), reply_markup=settings_kb(user_data))
+        await callback.answer(f"Ã¢Å“â€¦ Auto Restart: {status}")
+        await callback.message.edit_text(f"Ã¢Å“â€¦ <b>Auto Restart:</b> {status}", reply_markup=settings_kb(user_data))
         return
 
     if data == "set_bet":
         user_states[user_id] = "set_bet"
-        await callback.message.edit_text(
-            ui("ðŸ’° <b>Bet amount daalo</b> (min 2):"),
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [kb_button("â—€ï¸ BACK", "back_menu")]
-                ]
-            ),
-        )
+        await callback.message.edit_text("Ã°Å¸â€™Â° <b>Bet amount daalo</b> (min 2):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Ã¢â€”â‚¬Ã¯Â¸Â BACK", callback_data="back_menu")]))
         return
 
     if data == "set_multiplier":
         user_states[user_id] = "set_mult"
-        await callback.message.edit_text(
-            ui("ðŸ“ˆ <b>Multiplier daalo</b> (1.5, 2, 3):"),
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [kb_button("â—€ï¸ BACK", "back_menu")]
-                ]
-            ),
-        )
+        await callback.message.edit_text("Ã°Å¸â€œË† <b>Multiplier daalo</b> (1.5, 2, 3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Ã¢â€”â‚¬Ã¯Â¸Â BACK", callback_data="back_menu")]))
         return
 
     if data == "help":
         text = """
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>       â“ HELP</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>       Ã¢Ââ€œ HELP</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 <b>Commands:</b>
 /start - Bot start & platform select
@@ -627,23 +586,16 @@ Dubara /start se start karo.
 /help - Ye help
 
 <b>How it works:</b>
-1ï¸âƒ£ Platform choose karo
-2ï¸âƒ£ Login karo
-3ï¸âƒ£ Bot start karo!
-4ï¸âƒ£ Live profit dekho!
+1Ã¯Â¸ÂÃ¢Æ’Â£ Platform choose karo
+2Ã¯Â¸ÂÃ¢Æ’Â£ Login karo
+3Ã¯Â¸ÂÃ¢Æ’Â£ Bot start karo!
+4Ã¯Â¸ÂÃ¢Æ’Â£ Live profit dekho!
 
 <b>Platforms:</b>
-ðŸŽ® JAI CLUB - WinGo 30S/1M
-ðŸŽ¯ 51GAME - WinGo 30S/1M/3M/5M
+Ã°Å¸Å½Â® JAI CLUB - WinGo 30S/1M
+Ã°Å¸Å½Â¯ 51GAME - WinGo 30S/1M/3M/5M
 """
-        await callback.message.edit_text(
-            text=ui(text),
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [kb_button("â—€ï¸ BACK", "back_menu")]
-                ]
-            ),
-        )
+        await callback.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Ã¢â€”â‚¬Ã¯Â¸Â BACK", callback_data="back_menu")]))
         return
 
 # ============================================
@@ -658,7 +610,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
     multiplier = user_data.get("multiplier", 2.0)
     start_balance = user_data.get("start_balance", 500)
 
-    msg = await bot.send_message(chat_id, ui("â³ <b>JAI CLUB</b> - Logging in..."), reply_markup=main_menu_kb())
+    msg = await bot.send_message(chat_id, "Ã¢ÂÂ³ <b>JAI CLUB</b> - Logging in...", reply_markup=main_menu_kb())
     profit_messages[user_id] = msg.message_id
 
     try:
@@ -666,7 +618,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
         engine.login()
         engine.checker.fetch_ar_token(game)
     except Exception as e:
-        await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id, text=ui(f"âŒ Login failed: {e}"))
+        await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id, text=f"Ã¢ÂÅ’ Login failed: {e}")
         return
 
     engine.start_balance = start_balance
@@ -774,18 +726,18 @@ async def run_betting_51(user_id, chat_id, user_data):
     total_bet = user_data.get("total_bet", 2)
     start_balance = user_data.get("start_balance", 500)
 
-    msg = await bot.send_message(chat_id, ui("â³ <b>51GAME</b> - Logging in..."), reply_markup=main_menu_kb())
+    msg = await bot.send_message(chat_id, "Ã¢ÂÂ³ <b>51GAME</b> - Logging in...", reply_markup=main_menu_kb())
     profit_messages[user_id] = msg.message_id
 
     checker = Game51AccountChecker(username, password)
     try:
         if not checker.perform_login():
             await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                text=ui(f"âŒ Login failed: {checker.message}"))
+                text=f"Ã¢ÂÅ’ Login failed: {checker.message}")
             return
     except Exception as e:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-            text=ui(f"âŒ Login failed: {e}"))
+            text=f"Ã¢ÂÅ’ Login failed: {e}")
         return
 
     balance = checker.get_balance()
@@ -926,47 +878,47 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
     pct = ((profit / start) * 100) if start > 0 else 0
 
     if status == "RUNNING":
-        s_emoji, s_text = "ðŸŸ¢", "Running"
+        s_emoji, s_text = "Ã°Å¸Å¸Â¢", "Running"
     elif status == "WAITING":
-        s_emoji, s_text = "â³", "Waiting"
+        s_emoji, s_text = "Ã¢ÂÂ³", "Waiting"
     elif status == "STOPPED":
-        s_emoji, s_text = "ðŸ”´", "Stopped"
+        s_emoji, s_text = "Ã°Å¸â€Â´", "Stopped"
     elif "WIN" in status:
-        s_emoji, s_text = "ðŸ†", status
+        s_emoji, s_text = "Ã°Å¸Ââ€ ", status
     elif "LOSS" in status:
-        s_emoji, s_text = "ðŸ’”", status
+        s_emoji, s_text = "Ã°Å¸â€™â€", status
     else:
-        s_emoji, s_text = "âš¡", status
+        s_emoji, s_text = "Ã¢Å¡Â¡", status
 
-    p_emoji = "ðŸ“ˆ" if profit >= 0 else "ðŸ“‰"
+    p_emoji = "Ã°Å¸â€œË†" if profit >= 0 else "Ã°Å¸â€œâ€°"
     sign = "+" if profit >= 0 else ""
 
-    return ui(f"""
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
-<b>  ðŸ’° {platform} PROFIT</b>
-<b>â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”</b>
+    return f"""
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
+<b>  Ã°Å¸â€™Â° {platform} PROFIT</b>
+<b>Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â</b>
 
 {s_emoji} <b>Status:</b> {s_text}
 
-{p_emoji} <b>Net Profit:</b> <code>{sign}â‚¹{profit:.2f}</code>
-ðŸ“Š <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>
+{p_emoji} <b>Net Profit:</b> <code>{sign}Ã¢â€šÂ¹{profit:.2f}</code>
+Ã°Å¸â€œÅ  <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>
 
-âœ… <b>Wins:</b> <code>{bot_state.get('wins', 0)}</code> | âŒ <b>Losses:</b> <code>{bot_state.get('losses', 0)}</code>
-ðŸ† <b>Double Win:</b> <code>{bot_state.get('double_win', 0)}</code> | ðŸ’” <b>Double Loss:</b> <code>{bot_state.get('double_loss', 0)}</code>
+Ã¢Å“â€¦ <b>Wins:</b> <code>{bot_state.get('wins', 0)}</code> | Ã¢ÂÅ’ <b>Losses:</b> <code>{bot_state.get('losses', 0)}</code>
+Ã°Å¸Ââ€  <b>Double Win:</b> <code>{bot_state.get('double_win', 0)}</code> | Ã°Å¸â€™â€ <b>Double Loss:</b> <code>{bot_state.get('double_loss', 0)}</code>
 
-ðŸŽ¯ <b>Level:</b> <code>{bot_state.get('level', 0)}</code>
-ðŸ’° <b>Won:</b> <code>â‚¹{bot_state.get('total_won', 0):.2f}</code> | ðŸ’¸ <b>Lost:</b> <code>â‚¹{bot_state.get('total_lost', 0):.2f}</code>
+Ã°Å¸Å½Â¯ <b>Level:</b> <code>{bot_state.get('level', 0)}</code>
+Ã°Å¸â€™Â° <b>Won:</b> <code>Ã¢â€šÂ¹{bot_state.get('total_won', 0):.2f}</code> | Ã°Å¸â€™Â¸ <b>Lost:</b> <code>Ã¢â€šÂ¹{bot_state.get('total_lost', 0):.2f}</code>
 
-ðŸ•’ <i>{datetime.now().strftime('%H:%M:%S')}</i>
-""")
+Ã°Å¸â€¢â€™ <i>{datetime.now().strftime('%H:%M:%S')}</i>
+"""
 
 # ============================================
 # BOT START
 # ============================================
 
 async def main():
-    print(ui("ðŸ¤– DUAL GAME BOT STARTED!"))
-    print(ui("   ðŸŽ® JAI CLUB + ðŸŽ¯ 51GAME"))
+    print("Ã°Å¸Â¤â€“ DUAL GAME BOT STARTED!")
+    print("   Ã°Å¸Å½Â® JAI CLUB + Ã°Å¸Å½Â¯ 51GAME")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
