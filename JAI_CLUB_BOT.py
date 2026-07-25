@@ -123,13 +123,14 @@ class AccountChecker:
         )
 
     def update_lottery_headers(self) -> None:
+        origin = self.lottery_api_base_url.rstrip("/")
         self.client.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Content-Type": "application/json;charset=UTF-8",
-                "Origin": "https://h5.ar-lottery06.com",
-                "Referer": "https://h5.ar-lottery06.com/",
+                "Origin": origin,
+                "Referer": f"{origin}/",
                 "Connection": "keep-alive",
             }
         )
@@ -802,13 +803,9 @@ class AutoBetEngine:
 
     def fetch_open_issue(self):
         """Return the currently open issue number (the one you can bet on)."""
-        try:
-            url = f"https://draw.ar-lottery01.com/WinGo/{self.game_code}/GetCurrentIssue.json"
-            resp = requests.get(url, timeout=5, verify=False)
-            data = resp.json()
-            if data.get("code") == 0 and "data" in data:
-                return str(data["data"]["issueNumber"])
-        except: pass
+        data = self._fetch_draw_json("GetCurrentIssue.json", timeout=5)
+        if data and data.get("code") == 0 and "data" in data:
+            return str(data["data"]["issueNumber"])
         # fallback: increment last drawn issue
         issues = self.fetch_draw_history(1)
         if issues:
@@ -817,16 +814,48 @@ class AutoBetEngine:
             return f"{prefix}{num:03d}"
         return None
 
+    def _draw_base_urls(self):
+        seen = set()
+        bases = [
+            self.checker.lottery_draw_base_url,
+            "https://draw.ar-lottery06.com",
+            "https://draw.ar-lottery01.com",
+        ]
+        for base in bases:
+            base = (base or "").rstrip("/")
+            if not base or base in seen:
+                continue
+            seen.add(base)
+            yield base
+
+    def _fetch_draw_json(self, endpoint, timeout=6):
+        self.checker.update_lottery_headers()
+        last_error = None
+        for base in self._draw_base_urls():
+            url = f"{base}/WinGo/{self.game_code}/{endpoint}"
+            try:
+                resp = self.checker.client.get(url, timeout=timeout, verify=False)
+                resp.raise_for_status()
+                if not resp.text.strip():
+                    raise ValueError("empty response body")
+                data = resp.json()
+                if data.get("code") == 0:
+                    return data
+                last_error = RuntimeError(f"{url} returned code={data.get('code')} msg={data.get('msg')}")
+            except Exception as exc:
+                last_error = RuntimeError(f"{url} -> {exc}")
+                continue
+        if last_error:
+            logging.error("draw endpoint failed: %s", last_error)
+        return None
+
     def fetch_draw_history(self, page_size=6):
-        try:
-            url = f"https://draw.ar-lottery01.com/WinGo/{self.game_code}/GetHistoryIssuePage.json?pageSize={page_size}&pageNo=1"
-            resp = requests.get(url, timeout=6, verify=False)
-            data = resp.json()
-            if data.get("code") == 0:
-                issues = data["data"]["list"]
-                issues.sort(key=lambda x: x["issueNumber"], reverse=True)
-                return issues
-        except Exception as e: logging.error("draw history: %s", e)
+        endpoint = f"GetHistoryIssuePage.json?pageSize={page_size}&pageNo=1"
+        data = self._fetch_draw_json(endpoint, timeout=6)
+        if data and data.get("code") == 0:
+            issues = data["data"]["list"]
+            issues.sort(key=lambda x: x["issueNumber"], reverse=True)
+            return issues
         return []
 
     def place_dual_bet(self, issue, bs_side, color_side, bs_bet, color_bet):
