@@ -31,7 +31,7 @@ from aiogram.types import (
 BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
 CHANNEL_ID = "@JaiClubOfficial"
 CHANNEL_URL = "https://t.me/JaiClubOfficial"
-IMAGES_DIR = Path(__file__).resolve().parent / "images"
+IMAGES_DIR = Path(__file__).parent / "images"
 
 BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
@@ -72,7 +72,6 @@ def update_user(user_id, data):
 
 def img(name):
     p = IMAGES_DIR / name
-    logger.info(f"Image lookup: {p} exists={p.exists()}")
     return str(p) if p.exists() else None
 
 def box(title, body):
@@ -186,18 +185,10 @@ async def start_command(message: Message):
     image = img("profit.jpg")
     try:
         if image:
-            with open(image, "rb") as f:
-                await bot.send_photo(
-                    chat_id=message.chat.id,
-                    photo=f,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=platform_select_kb()
-                )
+            await message.answer_photo(photo=open(image, "rb"), caption=text, reply_markup=platform_select_kb())
         else:
             await message.answer(text=text, reply_markup=platform_select_kb())
-    except Exception as e:
-        logger.error(f"start send_photo error: {e}")
+    except Exception:
         await message.answer(text=text, reply_markup=platform_select_kb())
 
     update_user(user_id, {"name": name, "username": message.from_user.username, "logged_in": False})
@@ -242,18 +233,14 @@ async def handle_platform(callback: CallbackQuery):
         pass
     try:
         if image:
-            with open(image, "rb") as f:
-                await bot.send_photo(
-                    chat_id=callback.message.chat.id,
-                    photo=f,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=main_menu_kb()
-                )
+            await callback.message.answer_photo(
+                photo=open(image, "rb"),
+                caption=text,
+                reply_markup=main_menu_kb()
+            )
         else:
             await callback.message.answer(text=text, reply_markup=main_menu_kb())
-    except Exception as e:
-        logger.error(f"send_photo error: {e}")
+    except Exception:
         await callback.message.answer(text=text, reply_markup=main_menu_kb())
 
     await callback.answer(f"✅ {platform.upper()} selected!", show_alert=False)
