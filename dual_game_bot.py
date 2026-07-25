@@ -11,13 +11,11 @@ import asyncio
 import logging
 import random
 import time
-import base64
 import hashlib
 import threading
 from datetime import datetime
 from pathlib import Path
 from html import escape
-from functools import wraps
 
 sys.path.insert(0, str(Path(__file__).parent))
 from JAI_CLUB_BOT import AccountChecker as JAIChecker, AutoBetEngine, GAME_CODES, make_levels, predict_bs as jai_predict_bs, predict_color as jai_predict_color
@@ -32,17 +30,7 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 
-# ============================================
-# SECURITY - Obfuscated Token
-# ============================================
-_TKN_PARTS = [
-    base64.b64decode(b"ODQ4ODk4MTg4NTpBQUhQNlBPNjB3REZyLUNMU0wtMUhSVjVqOXk3ZExQNA==").decode()
-]
-
-def _get_token():
-    return _TKN_PARTS[0]
-
-BOT_TOKEN = _get_token()
+BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
 IMAGES_DIR = Path(__file__).parent / "images"
 
 BASE_DIR = Path("/home/akash/mimo-test")
