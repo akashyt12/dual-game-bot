@@ -411,7 +411,14 @@ async def handle_callbacks(callback: CallbackQuery):
             return
         if not user_data.get("start_balance"):
             user_states[user_id] = "set_amount"
-            await callback.message.edit_text("<b>ðŸ’° AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu"]]))
+            await callback.message.edit_text(
+                "<b>ðŸ’° AMOUNT SET KARO</b>\n\nBalance daalo:",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]
+                    ]
+                ),
+            )
             return
 
         await callback.answer("ðŸš€ Bot starting!")
