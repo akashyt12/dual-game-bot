@@ -1458,7 +1458,8 @@ async def run_betting_51(user_id, chat_id, user_data):
             pass
         return
 
-    balance = engine.refresh_balance()
+    engine.refresh_balance()
+    balance = engine.current_balance
     if balance <= 0:
         balance = start_balance
     engine.levels = make_levels(balance, total_bet, 2.0)
@@ -1497,7 +1498,7 @@ async def run_betting_51(user_id, chat_id, user_data):
                             pass
                         break
 
-            data = engine.checker.fetch_draw_history(type_id, 6)
+            data = engine.fetch_draw_history(6)
             if not data:
                 await asyncio.sleep(1)
                 continue
