@@ -8,7 +8,6 @@ from html import escape
 
 sys.path.insert(0, str(Path(__file__).parent))
 from JAI_CLUB_BOT import AccountChecker as JAIChecker, AutoBetEngine, GAME_CODES, make_levels, predict_bs as jai_predict_bs, predict_color as jai_predict_color
-from game51_checker import Game51AccountChecker, predict_bs as game51_predict_bs, predict_color as game51_predict_color, result_to_bs, result_to_color
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -1421,7 +1420,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
             pass
 
 # ============================================
-# RUN BETTING - 51GAME
+# RUN BETTING - 51GAME (uses JAI CLUB engine)
 # ============================================
 async def run_betting_51(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
@@ -1432,18 +1431,25 @@ async def run_betting_51(user_id, chat_id, user_data):
     profit_target = user_data.get("profit_target", 20)
     admin = user_data.get("is_admin", False)
 
+    game_names = {30: "WinGo_30S", 1: "WinGo_1M", 2: "WinGo_3M", 3: "WinGo_5M"}
+    game_code = game_names.get(type_id, "WinGo_30S")
+    display_names = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
+    game_name = display_names.get(type_id, "30 SEC")
+
     msg = await bot.send_message(chat_id, box("\u23F3 51GAME", "Logging in...") + footer(), reply_markup=main_menu_kb())
     _profit_messages[user_id] = msg.message_id
 
-    checker = Game51AccountChecker(username, password)
+    engine = AutoBetEngine(JAIChecker(username, password), game_code, total_bet, 2.0)
     try:
-        if not checker.perform_login():
+        engine.login()
+        if not engine.checker.jwt_token:
             try:
                 await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                    text=box("\u274C FAILED", safe_str(checker.message, 100)) + footer())
+                    text=box("\u274C FAILED", "Login failed") + footer())
             except Exception:
                 pass
             return
+        engine.checker.fetch_ar_token(game_code)
     except Exception as e:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
@@ -1452,11 +1458,10 @@ async def run_betting_51(user_id, chat_id, user_data):
             pass
         return
 
-    balance = checker.get_balance()
+    balance = engine.refresh_balance()
     if balance <= 0:
         balance = start_balance
-    game_names = {30: "30 SEC", 1: "1 MIN", 2: "3 MIN", 3: "5 MIN"}
-    game_name = game_names.get(type_id, "30 SEC")
+    engine.levels = make_levels(balance, total_bet, 2.0)
 
     bot_state = {
         "running": True, "start_balance": balance, "balance": balance,
@@ -1465,7 +1470,6 @@ async def run_betting_51(user_id, chat_id, user_data):
         "target_hit": False, "profit_target": profit_target, "start_time": time.time()
     }
     _active_bots[user_id] = bot_state
-    levels = make_levels(balance, total_bet, 2.0)
     await update_profit_msg(user_id, chat_id, bot_state, "RUNNING", f"51GAME {game_name}")
 
     while bot_state["running"]:
@@ -1493,19 +1497,19 @@ async def run_betting_51(user_id, chat_id, user_data):
                             pass
                         break
 
-            history = checker.fetch_draw_history(type_id, 6)
-            if not history:
+            data = engine.checker.fetch_draw_history(type_id, 6)
+            if not data:
                 await asyncio.sleep(1)
                 continue
-            latest = str(history[0].get("issueNumber", ""))
-            nums = [int(h.get("number", 0)) for h in history[:6]]
+            latest = str(data[0]["issueNumber"])
+            nums = [int(x["number"]) for x in data[:6]]
 
             if bot_state["pending"]:
                 pending = bot_state["pending"]
                 if str(pending["period"]) == latest:
                     actual_num = nums[0]
-                    actual_bs = result_to_bs(actual_num)
-                    actual_color = result_to_color(actual_num)
+                    actual_bs = "BIG" if actual_num >= 5 else "SMALL"
+                    actual_color = "GREEN" if actual_num in {1,3,5,7,9} else "RED"
                     bs_match = pending["bs_prediction"] == actual_bs
                     color_match = pending["color_prediction"] == actual_color
                     if bs_match and color_match:
@@ -1522,7 +1526,7 @@ async def run_betting_51(user_id, chat_id, user_data):
                         bot_state["losses"] += 1
                         bot_state["level"] += 1
                         bot_state["total_lost"] += pending["total_bet"]
-                        if bot_state["level"] >= len(levels):
+                        if bot_state["level"] >= len(engine.levels):
                             bot_state["running"] = False
                             break
                     bot_state["pending"] = None
@@ -1547,32 +1551,23 @@ async def run_betting_51(user_id, chat_id, user_data):
 
             pattern_bs = [("B" if n >= 5 else "S") for n in reversed(nums)]
             pattern_co = [("G" if n in {1,3,5,7,9} else "R") for n in reversed(nums)]
-            bs_pred, _ = game51_predict_bs(pattern_bs)
-            co_pred, _ = game51_predict_color(pattern_co)
+            bs_pred, _ = jai_predict_bs(pattern_bs)
+            co_pred, _ = jai_predict_color(pattern_co)
 
-            if bot_state["level"] >= len(levels):
+            if bot_state["level"] >= len(engine.levels):
                 bot_state["running"] = False
                 break
 
-            lv = levels[bot_state["level"]]
-            open_issue = checker.fetch_open_issue(type_id)
+            lv = engine.levels[bot_state["level"]]
+            open_issue = engine.fetch_open_issue()
             if open_issue:
                 try:
-                    bs_content = f"BigSmall_{bs_pred.capitalize()}"
-                    color_content = f"Color_{co_pred.capitalize()}"
-                    results = checker.place_dual_bet(open_issue, type_id, lv["bs_bet"], lv["color_bet"], bs_content, color_content)
-                    bs_data = results.get("bs", {})
-                    color_data = results.get("color", {})
-                    bs_ok = "error" not in bs_data and bs_data.get("code", -1) == 0
-                    color_ok = "error" not in color_data and color_data.get("code", -1) == 0
-                    if bs_ok or color_ok:
-                        bot_state["pending"] = {
-                            "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
-                            "total_bet": lv["total_bet"], "level": lv["level"]
-                        }
-                        await update_profit_msg(user_id, chat_id, bot_state, "WAITING", f"51GAME {game_name}")
-                    else:
-                        logger.error(f"51GAME Bet rejected: bs={bs_data} color={color_data}")
+                    engine.place_dual_bet(open_issue, bs_pred, co_pred, lv["bs_bet"], lv["color_bet"])
+                    bot_state["pending"] = {
+                        "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
+                        "total_bet": lv["total_bet"], "level": lv["level"]
+                    }
+                    await update_profit_msg(user_id, chat_id, bot_state, "WAITING", f"51GAME {game_name}")
                 except Exception as e:
                     logger.error(f"51GAME Bet failed: {e}")
             await asyncio.sleep(1)
