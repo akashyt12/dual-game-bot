@@ -625,6 +625,8 @@ async def run_betting_jai(user_id, chat_id, user_data):
     engine.current_balance = start_balance
     engine.levels = make_levels(start_balance, total_bet, multiplier)
 
+    logger.info(f"JAI CLUB engine ready: game={game} balance={start_balance} levels={len(engine.levels)} draw_url={engine.checker.lottery_draw_base_url}")
+
     bot_state = {
         "running": True, "start_balance": start_balance, "balance": start_balance,
         "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
@@ -637,6 +639,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
         try:
             data = engine.fetch_draw_history(6)
             if not data:
+                logger.warning("No draw history returned, retrying...")
                 await asyncio.sleep(1)
                 continue
 
@@ -700,9 +703,12 @@ async def run_betting_jai(user_id, chat_id, user_data):
                         "period": open_issue, "bs_prediction": bs_pred, "color_prediction": co_pred,
                         "total_bet": lv["total_bet"], "level": lv["level"]
                     }
+                    logger.info(f"Bet placed: issue={open_issue} bs={bs_pred} color={co_pred} L{lv['level']}")
                     await update_profit_msg(user_id, chat_id, bot_state, "WAITING", "JAI CLUB")
                 except Exception as e:
-                    logger.error(f"Bet failed: {e}")
+                    logger.error(f"Bet failed on {open_issue}: {e}")
+            else:
+                logger.warning("No open issue found, skipping round")
             await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"Betting error: {e}")
