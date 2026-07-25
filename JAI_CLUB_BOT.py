@@ -507,10 +507,6 @@ class AccountChecker:
         token = (query.get("Token") or query.get("token") or [""])[0]
         lang = (query.get("Lang") or query.get("language") or ["en"])[0]
         skin = (query.get("Skin") or [""])[0]
-        if parsed.scheme and parsed.netloc:
-            origin = f"{parsed.scheme}://{parsed.netloc}"
-            self.lottery_api_base_url = origin
-            self.lottery_draw_base_url = origin.replace("h5.", "draw.")
         return {"token": token, "lang": lang, "skin": skin, "url": launch_url or "", "apiBase": self.lottery_api_base_url, "drawBase": self.lottery_draw_base_url}
 
     def fetch_ar_token(self, game_code="WinGo_30S"):
@@ -549,34 +545,46 @@ class AccountChecker:
             if token and token not in token_candidates:
                 token_candidates.append(token)
         last_error = None
-        for token in token_candidates:
-            for auth_mode in self.lottery_auth_mode_order():
-                self.attach_token(token, auth_mode)
-                try:
-                    response = request_factory()
-                except Exception as e:
-                    last_error = e
-                    logger.error("run_lottery_request %s network error: %s", api_name, e)
-                    continue
-                if response.status_code == 401:
-                    logger.debug("run_lottery_request %s got 401, trying next token", api_name)
-                    continue
-                if response.status_code == 403:
-                    logger.warning("run_lottery_request %s got 403 for mode=%s, trying next", api_name, auth_mode)
-                    continue
-                try:
-                    data = self.parse_json_response(response, api_name)
-                except RuntimeError as e:
-                    last_error = e
-                    logger.error("run_lottery_request %s parse error: %s (HTTP %d)", api_name, e, response.status_code)
-                    continue
-                msg = str(data.get("msg", "")).lower()
-                if data.get("code") in {401, 4010} or "unauthor" in msg or ("token" in msg and "invalid" in msg):
-                    logger.debug("run_lottery_request %s auth rejected: %s", api_name, data.get("msg"))
-                    continue
-                self.jwt_token = token
-                self.lottery_auth_mode = auth_mode
-                return response, data
+        base_urls_to_try = [self.lottery_api_base_url]
+        fallback_url = "https://h5.ar-lottery06.com"
+        if fallback_url not in base_urls_to_try:
+            base_urls_to_try.append(fallback_url)
+        original_base_url = self.lottery_api_base_url
+        for base_url in base_urls_to_try:
+            self.lottery_api_base_url = base_url
+            all_403 = True
+            for token in token_candidates:
+                for auth_mode in self.lottery_auth_mode_order():
+                    self.attach_token(token, auth_mode)
+                    try:
+                        response = request_factory()
+                    except Exception as e:
+                        last_error = e
+                        logger.error("run_lottery_request %s network error: %s", api_name, e)
+                        continue
+                    if response.status_code == 401:
+                        logger.debug("run_lottery_request %s got 401, trying next token", api_name)
+                        continue
+                    if response.status_code == 403:
+                        logger.warning("run_lottery_request %s got 403 for mode=%s base=%s, trying next", api_name, auth_mode, base_url)
+                        continue
+                    all_403 = False
+                    try:
+                        data = self.parse_json_response(response, api_name)
+                    except RuntimeError as e:
+                        last_error = e
+                        logger.error("run_lottery_request %s parse error: %s (HTTP %d)", api_name, e, response.status_code)
+                        continue
+                    msg = str(data.get("msg", "")).lower()
+                    if data.get("code") in {401, 4010} or "unauthor" in msg or ("token" in msg and "invalid" in msg):
+                        logger.debug("run_lottery_request %s auth rejected: %s", api_name, data.get("msg"))
+                        continue
+                    self.jwt_token = token
+                    self.lottery_auth_mode = auth_mode
+                    return response, data
+            if all_403 and len(base_urls_to_try) > 1 and base_url != fallback_url:
+                logger.warning("run_lottery_request %s all tokens got 403 on %s, trying fallback %s", api_name, base_url, fallback_url)
+        self.lottery_api_base_url = original_base_url
         raise RuntimeError(f"{api_name}: All tokens rejected. Last error: {last_error}")
 
     def place_wingo_bet(self, issue_number, amount, bet_multiple, bet_content, game_code="WinGo_30S", language="en"):
