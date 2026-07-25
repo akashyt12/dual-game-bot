@@ -555,16 +555,23 @@ class AccountChecker:
                     response = request_factory()
                 except Exception as e:
                     last_error = e
+                    logger.error("run_lottery_request %s network error: %s", api_name, e)
                     continue
-                if response.status_code == 401 or response.status_code == 403:
+                if response.status_code == 401:
+                    logger.debug("run_lottery_request %s got 401, trying next token", api_name)
+                    continue
+                if response.status_code == 403:
+                    logger.warning("run_lottery_request %s got 403 for mode=%s, trying next", api_name, auth_mode)
                     continue
                 try:
                     data = self.parse_json_response(response, api_name)
                 except RuntimeError as e:
                     last_error = e
+                    logger.error("run_lottery_request %s parse error: %s (HTTP %d)", api_name, e, response.status_code)
                     continue
                 msg = str(data.get("msg", "")).lower()
                 if data.get("code") in {401, 4010} or "unauthor" in msg or ("token" in msg and "invalid" in msg):
+                    logger.debug("run_lottery_request %s auth rejected: %s", api_name, data.get("msg"))
                     continue
                 self.jwt_token = token
                 self.lottery_auth_mode = auth_mode
@@ -779,6 +786,7 @@ class AutoBetEngine:
         self.double_win = 0; self.double_loss = 0
         self.pending = None; self.last_seen_period = None
         self.history = []; self.stopped = False; self.status = "FIRST ROUND"
+        self._draw_cache: dict[str, Any] = {"ts": 0.0, "data": []}
 
     def login(self):
         if not self.checker.perform_login():
@@ -811,18 +819,20 @@ class AutoBetEngine:
 
     def fetch_open_issue(self):
         """Return the currently open issue number (the one you can bet on)."""
-        draw_urls = [
-            os.environ.get("JAI_LOTTERY_DRAW_BASE_URL", "https://draw.ar-lottery06.com").rstrip("/"),
-            "https://draw.ar-lottery01.com",
-        ]
+        draw_base = self.checker.lottery_draw_base_url
+        draw_urls = [draw_base]
+        for alt in ["https://draw.ar-lottery06.com", "https://draw.ar-lottery01.com"]:
+            if alt not in draw_urls:
+                draw_urls.append(alt)
         for base in draw_urls:
             try:
                 url = f"{base}/WinGo/{self.game_code}/GetCurrentIssue.json"
-                resp = requests.get(url, timeout=5, verify=False)
+                resp = requests.get(url, timeout=5, verify=False, headers={"User-Agent": "Mozilla/5.0"})
                 data = resp.json()
                 if data.get("code") == 0 and "data" in data:
                     return str(data["data"]["issueNumber"])
-            except: pass
+            except Exception:
+                pass
         issues = self.fetch_draw_history(1)
         if issues:
             last = issues[0]["issueNumber"]
@@ -831,38 +841,51 @@ class AutoBetEngine:
         return None
 
     def fetch_draw_history(self, page_size=6):
-        draw_urls = [
-            os.environ.get("JAI_LOTTERY_DRAW_BASE_URL", "https://draw.ar-lottery06.com").rstrip("/"),
-            "https://draw.ar-lottery01.com",
-        ]
+        now = time.time()
+        if self._draw_cache["data"] and now - self._draw_cache["ts"] < 1.0:
+            return self._draw_cache["data"]
+        draw_base = self.checker.lottery_draw_base_url
+        draw_urls = [draw_base]
+        for alt in ["https://draw.ar-lottery06.com", "https://draw.ar-lottery01.com"]:
+            if alt not in draw_urls:
+                draw_urls.append(alt)
         for base in draw_urls:
             try:
-                url = f"{base}/WinGo/{self.game_code}/GetHistoryIssuePage.json?pageSize={page_size}&pageNo=1"
-                resp = requests.get(url, timeout=6, verify=False)
+                ts = int(now * 1000)
+                url = f"{base}/WinGo/{self.game_code}/GetHistoryIssuePage.json?pageSize={page_size}&ts={ts}"
+                resp = requests.get(url, timeout=6, verify=False, headers={"User-Agent": "Mozilla/5.0"})
                 data = resp.json()
-                if data.get("code") == 0:
+                if isinstance(data, dict) and data.get("code") == 0:
                     issues = data["data"]["list"]
                     issues.sort(key=lambda x: x["issueNumber"], reverse=True)
+                    self._draw_cache = {"ts": now, "data": issues}
                     return issues
-            except Exception as e: logging.error("draw history (%s): %s", base, e)
-        return []
+            except Exception as e:
+                logging.error("draw history (%s): %s", base, e)
+        return self._draw_cache["data"] or []
 
     def place_dual_bet(self, issue, bs_side, color_side, bs_bet, color_bet):
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                self.checker.place_wingo_bet(issue, bs_bet, 1, f"BigSmall_{bs_side.capitalize()}", self.game_code)
-                self.checker.place_wingo_bet(issue, color_bet, 1, f"Color_{color_side.capitalize()}", self.game_code)
+                bs_content = f"BigSmall_{bs_side.capitalize()}"
+                color_content = f"Color_{color_side.capitalize()}"
+                logger.info("Placing bet: issue=%s bs=%s(%s) color=%s(%s)", issue, bs_content, bs_bet, color_content, color_bet)
+                self.checker.place_wingo_bet(issue, bs_bet, 1, bs_content, self.game_code)
+                self.checker.place_wingo_bet(issue, color_bet, 1, color_content, self.game_code)
+                logger.info("Bet placed successfully on issue %s", issue)
                 return
             except Exception as e:
-                if "does not exist" in str(e).lower() or "not open" in str(e).lower():
-                    print(col(f"Issue {issue} not open yet, retrying in 1s...", YELLOW))
+                err_msg = str(e).lower()
+                if "does not exist" in err_msg or "not open" in err_msg or "not exist" in err_msg:
+                    logger.warning("Issue %s not open, retrying... (%s)", issue, e)
                     time.sleep(1)
                     issue = self.fetch_open_issue()
                     if not issue:
                         raise RuntimeError("Cannot find valid open issue")
                     continue
                 else:
+                    logger.error("Bet failed on attempt %d: %s", attempt + 1, e)
                     raise RuntimeError(f"Betting failed after {attempt+1} attempts: {e}")
         raise RuntimeError(f"Betting failed after {max_retries} retries")
 
