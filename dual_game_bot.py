@@ -27,7 +27,8 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery, InputMediaPhoto,
-    InlineKeyboardButton, InlineKeyboardMarkup
+    InlineKeyboardButton, InlineKeyboardMarkup,
+    FSInputFile
 )
 
 BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
@@ -229,14 +230,13 @@ async def start_command(message: Message):
     image = img("profit.jpg")
     try:
         if image:
-            with open(image, "rb") as f:
-                await bot.send_photo(
-                    chat_id=message.chat.id,
-                    photo=f,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=platform_select_kb()
-                )
+            await bot.send_photo(
+                chat_id=message.chat.id,
+                photo=FSInputFile(image),
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=platform_select_kb()
+            )
         else:
             await message.answer(text=text, reply_markup=platform_select_kb())
     except Exception as e:
@@ -293,14 +293,13 @@ async def handle_platform(callback: CallbackQuery):
 
     try:
         if image:
-            with open(image, "rb") as f:
-                await bot.send_photo(
-                    chat_id=callback.message.chat.id,
-                    photo=f,
-                    caption=text,
-                    parse_mode="HTML",
-                    reply_markup=main_menu_kb()
-                )
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=FSInputFile(image),
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=main_menu_kb()
+            )
         else:
             await callback.message.answer(text=text, reply_markup=main_menu_kb())
     except Exception as e:
@@ -613,14 +612,13 @@ async def handle_callbacks(callback: CallbackQuery):
             pass
         try:
             if image:
-                with open(image, "rb") as f:
-                    await bot.send_photo(
-                        chat_id=callback.message.chat.id,
-                        photo=f,
-                        caption=text,
-                        parse_mode="HTML",
-                        reply_markup=back_kb()
-                    )
+                await bot.send_photo(
+                    chat_id=callback.message.chat.id,
+                    photo=FSInputFile(image),
+                    caption=text,
+                    parse_mode="HTML",
+                    reply_markup=back_kb()
+                )
             else:
                 await callback.message.answer(text=text, reply_markup=back_kb())
         except Exception:
