@@ -573,10 +573,43 @@ class AccountChecker:
             "language": language,
             "random": random.randint(100000000000, 999999999999),
         }
-        response, data = self.run_lottery_request("WinGoBet", lambda: self.post_lottery_api("/api/Lottery/WinGoBet", payload))
-        if response.status_code != 200 or data.get("code") != 0:
-            raise RuntimeError(data.get("msg") or "WinGoBet failed")
-        return data
+        payload = self.generate_ar_signature_payload(payload)
+        last_error = None
+
+        for attempt in range(2):
+            launch = self.fetch_ar_token(game_code)
+            ar_token = launch["token"]
+            lottery_api = launch["apiBase"]
+            bare_token = ar_token[7:].strip() if ar_token.lower().startswith("bearer ") else ar_token
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Content-Type": "application/json;charset=UTF-8",
+                "Authorization": f"Bearer {bare_token}",
+                "Origin": lottery_api,
+                "Referer": f"{lottery_api}/",
+            }
+            try:
+                response = requests.post(
+                    f"{lottery_api}/api/Lottery/WinGoBet",
+                    json=payload,
+                    headers=headers,
+                    timeout=15,
+                    verify=False,
+                )
+                data = self.parse_json_response(response, "WinGoBet")
+                if response.status_code == 200 and data.get("code") == 0:
+                    self.ar_token = ar_token
+                    self.lottery_api_base_url = lottery_api.rstrip("/")
+                    return data
+                last_error = RuntimeError(data.get("msg") or f"WinGoBet failed with HTTP {response.status_code}")
+                if response.status_code not in {401, 403}:
+                    break
+            except Exception as exc:
+                last_error = exc
+            time.sleep(0.2)
+
+        raise RuntimeError(str(last_error or "WinGoBet failed"))
 
     def close(self):
         self.client.close()
@@ -803,15 +836,14 @@ class AutoBetEngine:
 
     def fetch_open_issue(self):
         """Return the currently open issue number (the one you can bet on)."""
-        data = self._fetch_draw_json("GetCurrentIssue.json", timeout=5)
-        if data and data.get("code") == 0 and "data" in data:
-            return str(data["data"]["issueNumber"])
-        # fallback: increment last drawn issue
         issues = self.fetch_draw_history(1)
         if issues:
             last = issues[0]["issueNumber"]
             prefix = last[:-3]; num = int(last[-3:]) + 1
             return f"{prefix}{num:03d}"
+        data = self._fetch_draw_json("GetCurrentIssue.json", timeout=5)
+        if data and data.get("code") == 0 and "data" in data:
+            return str(data["data"]["issueNumber"])
         return None
 
     def _draw_base_urls(self):
