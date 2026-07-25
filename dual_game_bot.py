@@ -411,7 +411,7 @@ async def handle_callbacks(callback: CallbackQuery):
             return
         if not user_data.get("start_balance"):
             user_states[user_id] = "set_amount"
-            await callback.message.edit_text("<b>ðŸ’° AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]])
+            await callback.message.edit_text("<b>ðŸ’° AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]]))
             return
 
         await callback.answer("ðŸš€ Bot starting!")
@@ -564,12 +564,12 @@ Dubara /start se start karo.
 
     if data == "set_bet":
         user_states[user_id] = "set_bet"
-        await callback.message.edit_text("ðŸ’° <b>Bet amount daalo</b> (min 2):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]))
+        await callback.message.edit_text("ðŸ’° <b>Bet amount daalo</b> (min 2):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]]))
         return
 
     if data == "set_multiplier":
         user_states[user_id] = "set_mult"
-        await callback.message.edit_text("ðŸ“ˆ <b>Multiplier daalo</b> (1.5, 2, 3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]))
+        await callback.message.edit_text("ðŸ“ˆ <b>Multiplier daalo</b> (1.5, 2, 3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]]))
         return
 
     if data == "help":
@@ -595,7 +595,7 @@ Dubara /start se start karo.
 ðŸŽ® JAI CLUB - WinGo 30S/1M
 ðŸŽ¯ 51GAME - WinGo 30S/1M/3M/5M
 """
-        await callback.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]))
+        await callback.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="â—€ï¸ BACK", callback_data="back_menu")]]))
         return
 
 # ============================================
