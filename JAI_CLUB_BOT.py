@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Jai Club / AR Lottery Autoâ€‘Bet CLI (Dual Level Engine â€“ BN Last King Logic)
+Jai Club / AR Lottery Auto‑Bet CLI (Dual Level Engine – BN Last King Logic)
 
 - Full AccountChecker for login & betting
 - Manual balance entry if API returns 0
 - Dual bet: half on Color, half on Big/Small
-- Level staking: double loss â†’ next level, breakâ€‘even â†’ repeat, double win â†’ reset
-- 1â€‘second polling, real open issue fetch
+- Level staking: double loss → next level, break‑even → repeat, double win → reset
+- 1‑second polling, real open issue fetch
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ except ImportError:
     print("Install missing libraries: pip install requests urllib3 pillow")
     raise
 
-# â”€â”€ Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Colors ───────────────────────────────────────────────────
 RESET = "\033[0m"
 BOLD = "\033[1m"
 RED = "\033[31m"
@@ -52,7 +52,7 @@ NEON_CYAN = "\033[96m"
 def col(text, code):
     return f"{code}{text}{RESET}" if sys.stdout.isatty() else text
 
-# â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Constants ────────────────────────────────────────────────
 GAME_CODES = {"1": "WinGo_30S", "2": "WinGo_1M"}
 DEFAULT_BASE_TOTAL_BET = 2
 DEFAULT_CONFIDENCE = 55          # percent
@@ -69,7 +69,7 @@ LOTTERY_AUTH_MODES = ("bearer", "authorization", "token", "x-token", "token-lowe
 logging.basicConfig(level=logging.INFO)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# â”€â”€ AccountChecker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── AccountChecker ───────────────────────────────────────────
 class AccountChecker:
     def __init__(self, username: str, password: str):
         self.username = username.strip()
@@ -590,7 +590,7 @@ class AccountChecker:
         self.client.close()
 
 
-# â”€â”€ SIMPLE PREDICTION SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── SIMPLE PREDICTION SYSTEM ──────────────────────────────
 def predict_bs(pattern):
     """
     Predict Big/Small based on last 6 results
@@ -742,7 +742,7 @@ def calc_confidence(bs_rule, color_rule):
     return min(conf, 95)
 
 
-# â”€â”€ Level Calculator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Level Calculator ────────────────────────────────────────
 def make_levels(balance, start_total, multiplier):
     levels = []
     per_market = max(1, math.ceil(start_total / 2))
@@ -765,7 +765,7 @@ def make_levels(balance, start_total, multiplier):
     return levels
 
 
-# â”€â”€ AutoBet Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── AutoBet Engine ──────────────────────────────────────────
 class AutoBetEngine:
     def __init__(self, username, password, game_code, total_bet, multiplier, confidence_pct):
         self.username = username; self.password = password
@@ -874,11 +874,11 @@ class AutoBetEngine:
         bs_match = self.pending["bs_prediction"] == actual_bs
         color_match = self.pending["color_prediction"] == actual_color
         if bs_match and color_match:
-            result = "DOUBLE WIN âœ…âœ…"; self.double_win += 1; self.current_level = 0
+            result = "DOUBLE WIN ✅✅"; self.double_win += 1; self.current_level = 0
         elif bs_match or color_match:
-            result = "BREAK EVEN âœ…âŒ"; self.break_even += 1
+            result = "BREAK EVEN ✅❌"; self.break_even += 1
         else:
-            result = "DOUBLE LOSS âŒâŒ"; self.double_loss += 1; self.current_level += 1
+            result = "DOUBLE LOSS ❌❌"; self.double_loss += 1; self.current_level += 1
             if self.current_level >= len(self.levels):
                 self.stopped = True; self.status = "LEVEL FINISHED - STOP"
         rec = {
@@ -950,7 +950,7 @@ class AutoBetEngine:
                         "bs_prediction": bs_pred, "color_prediction": co_pred,
                         "bs_rule": bs_rule, "color_rule": co_rule, "confidence": conf
                     }
-                    print(col(f"âš¡ Bet placed on {open_issue[-12:]} â†’ {bs_pred}/{co_pred} (L{lv['level']}, total {lv['total_bet']})", CYAN))
+                    print(col(f"⚡ Bet placed on {open_issue[-12:]} → {bs_pred}/{co_pred} (L{lv['level']}, total {lv['total_bet']})", CYAN))
 
                 if self.start_balance > 0 and (self.net_profit / self.start_balance)*100 >= PROFIT_TARGET_PCT:
                     print(col(f"Profit target {PROFIT_TARGET_PCT}% reached. Stopping.", GREEN)); break
@@ -966,17 +966,17 @@ class AutoBetEngine:
 
     def print_header(self):
         print(col("""
-   â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ    â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–„     â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ 
-  â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ   â–€â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
-  â–ˆâ–ˆâ–ˆ    â–ˆâ–€    â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–€  
-  â–ˆâ–ˆâ–ˆ         â–„â–ˆâ–ˆâ–ˆâ–„â–„â–„â–„â–ˆâ–ˆâ–€ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ  â–„â–ˆâ–ˆâ–ˆ        
-â–€â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–€â–€â–ˆâ–ˆâ–ˆâ–€â–€â–€â–€â–€   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–€â–€â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–„  
-         â–ˆâ–ˆâ–ˆ â–€â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
-   â–„â–ˆ    â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆ   â–„â–ˆâ–ˆâ–ˆ   â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ 
- â–„â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–€    â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–€    â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ  
-               â–ˆâ–ˆâ–ˆ    â–ˆâ–ˆâ–ˆ                         
+   ▄████████    ▄████████ ████████▄     ▄████████ 
+  ███    ███   ███    ███ ███   ▀███   ███    ███ 
+  ███    █▀    ███    ███ ███    ███   ███    █▀  
+  ███         ▄███▄▄▄▄██▀ ███    ███  ▄███        
+▀███████████ ▀▀███▀▀▀▀▀   ███    ███ ▀▀███ ████▄  
+         ███ ▀███████████ ███    ███   ███    ███ 
+   ▄█    ███   ███    ███ ███   ▄███   ███    ███ 
+ ▄████████▀    ███    ███ ████████▀    ██████████  
+               ███    ███                         
 """, NEON_CYAN))
-        print(col("     JAI CLUB AUTO BET â€“ DUAL LEVEL ENGINE", NEON_MAGENTA+BOLD))
+        print(col("     JAI CLUB AUTO BET – DUAL LEVEL ENGINE", NEON_MAGENTA+BOLD))
         print(col(f"     Game: {self.game_code} | Start Total Bet: {self.start_total_bet} | Mult: {self.multiplier}x | Min Conf: {self.confidence_pct}%", YELLOW))
         print(col("="*110, CYAN))
         print(f"{'Period':<15}{'Prediction':<22}{'Bet':<12}{'Actual':<18}{'Result':<24}{'Balance':<12}")
@@ -990,9 +990,9 @@ class AutoBetEngine:
         print(col(line, clr))
 
 
-# â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Main ────────────────────────────────────────────────────
 def main():
-    print(col("Jai Club Dual Level Engine â€“ BN Last King Patterns", CYAN+BOLD))
+    print(col("Jai Club Dual Level Engine – BN Last King Patterns", CYAN+BOLD))
     username = input("Username/Mobile: ").strip()
     password = getpass.getpass("Password: ")
     if not username or not password:
