@@ -16,7 +16,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
 
-BOT_TOKEN = "8488981885:AAHP6PO4d6wDFr-cLSL1-lRHV5j9y7dXLP4"
+BOT_TOKEN = "8641246132:AAEK0413rOwM4LYeHQJ0_dQ4gQ_ENncYbDc"
 ADMIN_USERNAME = "lord_x_stylo"
 BOT_VERSION = "Predictor 2.0"
 CREATOR = "Lord Senku"
