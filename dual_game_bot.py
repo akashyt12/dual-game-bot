@@ -21,7 +21,7 @@ from game51_checker import Game51AccountChecker, predict_bs as game51_predict_bs
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode, ButtonStyle
+from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
     Message, CallbackQuery, InputMediaPhoto,
@@ -72,71 +72,71 @@ def update_user(user_id, data):
 
 def platform_select_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎰 JAI CLUB", callback_data="platform_jai", style=ButtonStyle.SUCCESS)],
-        [InlineKeyboardButton(text="🎯 51GAME", callback_data="platform_51", style=ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton(text="🎰 JAI CLUB", callback_data="platform_jai", ],
+        [InlineKeyboardButton(text="🎯 51GAME", callback_data="platform_51", ],
     ])
 
 def main_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="▶️ START BOT", callback_data="start_bot", style=ButtonStyle.SUCCESS),
-            InlineKeyboardButton(text="📊 STATUS", callback_data="status", style=ButtonStyle.PRIMARY),
+            InlineKeyboardButton(text="▶️ START BOT", callback_data="start_bot", )
+            InlineKeyboardButton(text="📊 STATUS", callback_data="status", )
         ],
         [
-            InlineKeyboardButton(text="💰 PROFIT", callback_data="profit", style=ButtonStyle.SUCCESS),
-            InlineKeyboardButton(text="⚙️ SETTINGS", callback_data="settings", style=ButtonStyle.PRIMARY),
+            InlineKeyboardButton(text="💰 PROFIT", callback_data="profit", )
+            InlineKeyboardButton(text="⚙️ SETTINGS", callback_data="settings", )
         ],
         [
-            InlineKeyboardButton(text="🎯 GAME", callback_data="game_select", style=ButtonStyle.PRIMARY),
-            InlineKeyboardButton(text="🛑 STOP", callback_data="stop_bot", style=ButtonStyle.DANGER),
+            InlineKeyboardButton(text="🎯 GAME", callback_data="game_select", )
+            InlineKeyboardButton(text="🛑 STOP", callback_data="stop_bot", )
         ],
         [
-            InlineKeyboardButton(text="🔄 SWITCH", callback_data="switch_platform", style=ButtonStyle.PRIMARY),
-            InlineKeyboardButton(text="❓ HELP", callback_data="help", style=ButtonStyle.PRIMARY),
+            InlineKeyboardButton(text="🔄 SWITCH", callback_data="switch_platform", )
+            InlineKeyboardButton(text="❓ HELP", callback_data="help", )
         ],
     ])
 
 def back_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]
+        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]
     ])
 
 def game_menu_kb_jai():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="⚡ 30 SEC", callback_data="game_30s", style=ButtonStyle.SUCCESS),
-            InlineKeyboardButton(text="🔥 1 MIN", callback_data="game_1m", style=ButtonStyle.SUCCESS),
+            InlineKeyboardButton(text="⚡ 30 SEC", callback_data="game_30s", )
+            InlineKeyboardButton(text="🔥 1 MIN", callback_data="game_1m", )
         ],
-        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]
+        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]
     ])
 
 def game_menu_kb_51():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="⚡ 30 SEC", callback_data="game51_30", style=ButtonStyle.SUCCESS),
-            InlineKeyboardButton(text="🔥 1 MIN", callback_data="game51_1m", style=ButtonStyle.SUCCESS),
+            InlineKeyboardButton(text="⚡ 30 SEC", callback_data="game51_30", )
+            InlineKeyboardButton(text="🔥 1 MIN", callback_data="game51_1m", )
         ],
         [
-            InlineKeyboardButton(text="🕐 3 MIN", callback_data="game51_3m", style=ButtonStyle.PRIMARY),
-            InlineKeyboardButton(text="🕔 5 MIN", callback_data="game51_5m", style=ButtonStyle.PRIMARY),
+            InlineKeyboardButton(text="🕐 3 MIN", callback_data="game51_3m", )
+            InlineKeyboardButton(text="🕔 5 MIN", callback_data="game51_5m", )
         ],
-        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]
+        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]
     ])
 
 def settings_kb(user_data):
     restart = "ON" if user_data.get("auto_restart", True) else "OFF"
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"🔄 AUTO RESTART: {restart}", callback_data="toggle_restart", style=ButtonStyle.PRIMARY)],
-        [InlineKeyboardButton(text="💰 SET BET", callback_data="set_bet", style=ButtonStyle.SUCCESS)],
-        [InlineKeyboardButton(text="📈 SET MULTIPLIER", callback_data="set_multiplier", style=ButtonStyle.SUCCESS)],
-        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)],
+        [InlineKeyboardButton(text=f"🔄 AUTO RESTART: {restart}", callback_data="toggle_restart", ],
+        [InlineKeyboardButton(text="💰 SET BET", callback_data="set_bet", ],
+        [InlineKeyboardButton(text="📈 SET MULTIPLIER", callback_data="set_multiplier", ],
+        [InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ],
     ])
 
 def stop_confirm_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="✅ YES STOP", callback_data="confirm_stop", style=ButtonStyle.DANGER),
-            InlineKeyboardButton(text="❌ NO RUKO", callback_data="cancel_stop", style=ButtonStyle.SUCCESS),
+            InlineKeyboardButton(text="✅ YES STOP", callback_data="confirm_stop", )
+            InlineKeyboardButton(text="❌ NO RUKO", callback_data="cancel_stop", )
         ]
     ])
 
@@ -411,7 +411,7 @@ async def handle_callbacks(callback: CallbackQuery):
             return
         if not user_data.get("start_balance"):
             user_states[user_id] = "set_amount"
-            await callback.message.edit_text("<b>💰 AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]]))
+            await callback.message.edit_text("<b>💰 AMOUNT SET KARO</b>\n\nBalance daalo:", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]]))
             return
 
         await callback.answer("🚀 Bot starting!")
@@ -564,12 +564,12 @@ Dubara /start se start karo.
 
     if data == "set_bet":
         user_states[user_id] = "set_bet"
-        await callback.message.edit_text("💰 <b>Bet amount daalo</b> (min 2):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]]))
+        await callback.message.edit_text("💰 <b>Bet amount daalo</b> (min 2):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]]))
         return
 
     if data == "set_multiplier":
         user_states[user_id] = "set_mult"
-        await callback.message.edit_text("📈 <b>Multiplier daalo</b> (1.5, 2, 3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]]))
+        await callback.message.edit_text("📈 <b>Multiplier daalo</b> (1.5, 2, 3):", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]]))
         return
 
     if data == "help":
@@ -595,7 +595,7 @@ Dubara /start se start karo.
 🎮 JAI CLUB - WinGo 30S/1M
 🎯 51GAME - WinGo 30S/1M/3M/5M
 """
-        await callback.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", style=ButtonStyle.PRIMARY)]]))
+        await callback.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ BACK", callback_data="back_menu", ]]))
         return
 
 # ============================================
