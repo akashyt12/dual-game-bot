@@ -630,7 +630,7 @@ async def handle_callbacks(callback: CallbackQuery):
     # ---- USER INFO ----
     if data == "user_info":
         uid_str = str(user_id)
-        short_id = hashlib_md5(uid_str.encode()).hexdigest()[:8].upper()
+        short_id = hashlib_md5(uid_str.encode())[:8].upper()
         refs = len(user_data.get("referrals", []))
         pts = user_data.get("points", 0)
         uname = user_data.get("username", "N/A")
