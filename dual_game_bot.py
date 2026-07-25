@@ -54,11 +54,8 @@ profit_messages = {}
 # ============================================
 
 IMAGE_URLS = {
-    "profit.png": "https://t3.ftcdn.net/jpg/03/76/73/94/360_F_376739477_RzVTIqh9QmtkqBlIGD3HTOW7K3q3ZEuq.jpg",
-    "wingo.png": "https://images.seeklogo.com/logo-png/42/1/wingo-logo-png_seeklogo-428333.png",
-    "game51.png": "https://cdn.aptoide.com/imgs/5/6/5/56557ac7b64f397687e07dbbdc013e7b_icon.png",
-    "jaiclub.png": "http://jaiclubgame.cc/wp-content/uploads/2026/04/Jai-Club-logo-with-golden-details-2.webp",
-    "target.png": "https://omahacharts.com/wp-content/uploads/2018/12/target.png",
+    "profit.jpg": "https://t3.ftcdn.net/jpg/03/76/73/94/360_F_376739477_RzVTIqh9QmtkqBlIGD3HTOW7K3q3ZEuq.jpg",
+    "jaiclub.webp": "http://jaiclubgame.cc/wp-content/uploads/2026/04/Jai-Club-logo-with-golden-details-2.webp",
 }
 
 def download_images():
@@ -208,7 +205,7 @@ async def start_command(message: Message):
         "<i>Select a platform to continue:</i>"
     ))
 
-    image = img("profit.png")
+    image = img("profit.jpg")
     try:
         if image:
             await message.answer_photo(photo=InputMediaPhoto(media=open(image, "rb")), caption=text, reply_markup=platform_select_kb())
@@ -232,7 +229,7 @@ async def handle_platform(callback: CallbackQuery):
     update_user(user_id, user_data)
 
     if platform == "jai":
-        image_file = "jaiclub.png"
+        image_file = "jaiclub.webp"
         text = box("🎰 JAI CLUB SELECTED", (
             "<b>Platform:</b> JAI Club / AR Lottery\n"
             "<b>Games:</b> WinGo 30 Second, 1 Minute\n"
@@ -495,7 +492,7 @@ async def handle_callbacks(callback: CallbackQuery):
         target = user_data.get("profit_target", 20)
         target_status = "✅ REACHED!" if pct >= target else f"Target: {target}%"
 
-        image = img("profit.png")
+        image = img("profit.jpg")
         text = box("💰 LIVE PROFIT", (
             f"{emoji} <b>Net Profit:</b> <code>{sign}₹{profit:.2f}</code>\n"
             f"📊 <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>\n"
