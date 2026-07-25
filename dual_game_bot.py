@@ -57,7 +57,7 @@ IMAGE_URLS = {
     "profit.png": "https://t3.ftcdn.net/jpg/03/76/73/94/360_F_376739477_RzVTIqh9QmtkqBlIGD3HTOW7K3q3ZEuq.jpg",
     "wingo.png": "https://images.seeklogo.com/logo-png/42/1/wingo-logo-png_seeklogo-428333.png",
     "game51.png": "https://cdn.aptoide.com/imgs/5/6/5/56557ac7b64f397687e07dbbdc013e7b_icon.png",
-    "jaiclub.png": "https://jaiclubofficial.in.net/wp-content/uploads/2026/03/imgi_5_jai-club-1-e1774171855952-768x768-1.webp",
+    "jaiclub.png": "http://jaiclubgame.cc/wp-content/uploads/2026/04/Jai-Club-logo-with-golden-details-2.webp",
     "target.png": "https://omahacharts.com/wp-content/uploads/2018/12/target.png",
 }
 
@@ -235,9 +235,13 @@ async def handle_platform(callback: CallbackQuery):
         image_file = "jaiclub.png"
         text = box("🎰 JAI CLUB SELECTED", (
             "<b>Platform:</b> JAI Club / AR Lottery\n"
-            "<b>Games:</b> WinGo 30S, 1M\n"
-            "<b>API:</b> jaiclubapi.com\n\n"
-            "🔐 Type <b>/login</b> to authenticate"
+            "<b>Games:</b> WinGo 30 Second, 1 Minute\n"
+            "<b>API:</b> jaiclubapi.com\n"
+            "<b>Server:</b> ar-lottery06.com\n\n"
+            "📊 <b>Auto Prediction</b> + <b>Dual Bet System</b>\n"
+            "🎯 <b>Level Staking</b> + <b>Profit Target</b>\n\n"
+            "🔐 Type <b>/login</b> to authenticate\n"
+            "💰 Then enter balance to start bot"
         ))
     else:
         image_file = "game51.png"
