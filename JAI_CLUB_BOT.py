@@ -67,6 +67,7 @@ RED_NUMS   = {0, 2, 4, 6, 8}
 LOTTERY_AUTH_MODES = ("bearer", "authorization", "token", "x-token", "token-lower")
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ── AccountChecker ───────────────────────────────────────────
@@ -819,11 +820,9 @@ class AutoBetEngine:
 
     def fetch_open_issue(self):
         """Return the currently open issue number (the one you can bet on)."""
-        draw_base = self.checker.lottery_draw_base_url
-        draw_urls = [draw_base]
-        for alt in ["https://draw.ar-lottery06.com", "https://draw.ar-lottery01.com"]:
-            if alt not in draw_urls:
-                draw_urls.append(alt)
+        draw_urls = ["https://draw.ar-lottery06.com", self.checker.lottery_draw_base_url, "https://draw.ar-lottery01.com"]
+        seen = set()
+        draw_urls = [u for u in draw_urls if u not in seen and not seen.add(u)]
         for base in draw_urls:
             try:
                 url = f"{base}/WinGo/{self.game_code}/GetCurrentIssue.json"
@@ -844,11 +843,9 @@ class AutoBetEngine:
         now = time.time()
         if self._draw_cache["data"] and now - self._draw_cache["ts"] < 1.0:
             return self._draw_cache["data"]
-        draw_base = self.checker.lottery_draw_base_url
-        draw_urls = [draw_base]
-        for alt in ["https://draw.ar-lottery06.com", "https://draw.ar-lottery01.com"]:
-            if alt not in draw_urls:
-                draw_urls.append(alt)
+        draw_urls = ["https://draw.ar-lottery06.com", self.checker.lottery_draw_base_url, "https://draw.ar-lottery01.com"]
+        seen = set()
+        draw_urls = [u for u in draw_urls if u not in seen and not seen.add(u)]
         for base in draw_urls:
             try:
                 ts = int(now * 1000)
