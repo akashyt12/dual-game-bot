@@ -615,6 +615,8 @@ async def run_betting_jai(user_id, chat_id, user_data):
 
     try:
         engine = AutoBetEngine(username, password, game, total_bet, multiplier, 55)
+        engine.checker.lottery_api_base_url = "https://h5.ar-lottery06.com"
+        engine.checker.lottery_draw_base_url = "https://draw.ar-lottery06.com"
         engine.login()
         engine.checker.fetch_ar_token(game)
     except Exception as e:
