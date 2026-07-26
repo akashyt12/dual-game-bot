@@ -219,6 +219,8 @@ def has_enough_points(user_data):
 def points_finished(user_data):
     if user_data.get("is_admin"):
         return False
+    if is_premium_active(user_data):
+        return False
     return user_data.get("points", 0) <= 0
 
 def deduct_point(user_id):
