@@ -348,10 +348,20 @@ async def start_command(message: Message):
     user_data["username"] = username
     update_user(user_id, user_data)
 
+    joined = await check_joined_async(user_id)
+    if not joined:
+        await message.answer(box(f"\U0001F4E2 JOIN CHANNELS",
+            f"Welcome <b>{name}</b>!\n\n"
+            "Join our channels first to use the bot.\n\n"
+            "Click the buttons below to join, then press\n"
+            "<b>\u2705 I HAVE JOINED</b> to verify."
+        ) + footer(), reply_markup=channels_join_kb())
+        return
+
     if not has_enough_points(user_data) and not user_data.get("is_admin"):
         pts = user_data.get("points", 0)
         refs = len(user_data.get("referrals", []))
-        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
         await message.answer(box(f"\U0001F4B0 NEED {REQUIRED_POINTS} POINTS",
             f"Welcome <b>{name}</b>!\n\n"
             f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n"
@@ -360,15 +370,6 @@ async def start_command(message: Message):
             f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
             f"<i>Need {REQUIRED_POINTS} points to access bot</i>"
         ) + footer(), reply_markup=referral_only_kb(user_id))
-        return
-
-    joined = await check_joined_async(user_id)
-    if not joined:
-        await message.answer(box(f"\U0001F4E2 JOIN CHANNELS",
-            f"Welcome <b>{name}</b>!\n\n"
-            "Join our channels first to use the bot.\n"
-            "Click the buttons below, then press 'I Joined'."
-        ) + footer(), reply_markup=channels_join_kb())
         return
 
     pts = user_data.get("points", 0)
@@ -399,15 +400,16 @@ async def check_joined_callback(callback: CallbackQuery):
         return
     joined = await check_joined_async(user_id)
     if not joined:
-        await callback.answer("\u274C You haven't joined all channels yet!", show_alert=True)
+        await callback.answer("\u274C You haven't joined all channels yet!\nPlease join all channels first.", show_alert=True)
         return
     user_data = get_user(user_id)
     if not has_enough_points(user_data):
         pts = user_data.get("points", 0)
-        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
         try:
             await callback.message.edit_text(
                 text=box(f"\U0001F4B0 NEED {REQUIRED_POINTS} POINTS",
+                    f"Welcome <b>{safe_str(callback.from_user.first_name or 'User', 50)}</b>!\n\n"
                     f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
                     f"Share referral link:\n<code>{ref_link}</code>\n\n"
                     f"<i>Each referral = {REFERRAL_POINTS} points</i>"
@@ -418,27 +420,25 @@ async def check_joined_callback(callback: CallbackQuery):
         return
     name = safe_str(callback.from_user.first_name or "User", 50)
     pts = user_data.get("points", 0)
-    image = img("profit.jpg")
+    image = img("main_menu.png")
     text = box(f"\U0001F3B0 {BOT_VERSION}",
         f"Welcome <b>{name}</b>!\n"
         f"<b>Points:</b> <code>{pts}</code>\n\n"
-        "Choose Your Platform:\n\n"
-        "\U0001F3B0 <b>JAI CLUB</b> - WinGo 30S / 1M\n"
-        "\U0001F3AF <b>51GAME</b> - WinGo 30S / 1M / 3M / 5M"
+        "Choose an option:"
     ) + footer()
     try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    try:
         if image:
+            await callback.message.delete()
             await bot.send_photo(chat_id=callback.message.chat.id, photo=FSInputFile(image),
-                caption=text, parse_mode="HTML", reply_markup=platform_select_kb())
+                caption=text, parse_mode="HTML", reply_markup=main_menu_kb())
         else:
-            await callback.message.answer(text=text, reply_markup=platform_select_kb())
+            await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
     except Exception:
-        await callback.message.answer(text=text, reply_markup=platform_select_kb())
-    await callback.answer("\u2705 Verified!")
+        try:
+            await callback.message.edit_text(text=text, reply_markup=main_menu_kb())
+        except Exception:
+            pass
+    await callback.answer("Verified!", show_alert=False)
 
 # ============================================
 # ADMIN COMMANDS
@@ -538,7 +538,7 @@ async def unban_command(message: Message):
 async def refer_command(message: Message):
     user_id = message.from_user.id
     user_data = get_user(user_id)
-    ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+    ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
     refs = len(user_data.get("referrals", []))
     pts = user_data.get("points", 0)
     await message.answer(box("\U0001F4DD REFERRALS",
@@ -610,7 +610,7 @@ async def handle_callbacks(callback: CallbackQuery):
 
     # ---- CHECK REFERRALS ----
     if data == "check_referrals":
-        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
         refs = len(user_data.get("referrals", []))
         pts = user_data.get("points", 0)
         txt = box("\U0001F4DD REFERRALS",
@@ -830,7 +830,7 @@ async def handle_callbacks(callback: CallbackQuery):
             await callback.message.delete()
         except Exception:
             pass
-        ref_link = f"t.me/predictfinalbot?start=REF_{user_id}"
+        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
         await send_section(callback.message.chat.id, user_id, "referrals.png",
             text=box("\U0001F4B0 NO POINTS LEFT",
                 "Your points are finished!\n\n"
