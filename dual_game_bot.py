@@ -1249,6 +1249,22 @@ async def handle_text(message: Message):
     user_data = get_user(user_id)
     admin = is_admin(message.from_user)
 
+    if not admin and not user_data.get("banned"):
+        channels = get_channels()
+        if channels:
+            joined = await check_joined_async(user_id)
+            if not joined:
+                kb = channels_join_kb()
+                await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
+                    f"Welcome <b>{safe_str(message.from_user.first_name or 'User', 50)}</b>!\n\n"
+                    "You must join our channels to use this bot.\n\n"
+                    "1. Click each channel button below\n"
+                    "2. Join the channel\n"
+                    "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
+                    "<i>Referral credit also requires channel verification.</i>"
+                ) + footer(), reply_markup=kb)
+                return
+
     # ---- ADMIN STATES ----
     if admin:
         if state == "admin_addch":
