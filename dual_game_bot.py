@@ -328,12 +328,14 @@ def stop_confirm_kb():
 def admin_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="\U0001F4CA STATS", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="\U0001F4E2 ADD CHANNEL", callback_data="admin_addch")],
-        [InlineKeyboardButton(text="\U0001F5D1 DEL CHANNEL", callback_data="admin_delch")],
+        [InlineKeyboardButton(text="\U0001F4E2 ADD CHANNEL", callback_data="admin_addch"),
+         InlineKeyboardButton(text="\U0001F5D1 DEL CHANNEL", callback_data="admin_delch")],
         [InlineKeyboardButton(text="\U0001F916 BOT AS CHANNEL ADMIN", callback_data="admin_promote_bot")],
         [InlineKeyboardButton(text="\U0001F464 ADD POINTS", callback_data="admin_addpts")],
-        [InlineKeyboardButton(text="\U0001F6AB BAN USER", callback_data="admin_ban")],
-        [InlineKeyboardButton(text="\u2705 UNBAN USER", callback_data="admin_unban")],
+        [InlineKeyboardButton(text="\U0001F511 GENERATE KEY", callback_data="admin_genkey")],
+        [InlineKeyboardButton(text="\U0001F511 ALL KEYS", callback_data="admin_keys")],
+        [InlineKeyboardButton(text="\U0001F6AB BAN USER", callback_data="admin_ban"),
+         InlineKeyboardButton(text="\u2705 UNBAN USER", callback_data="admin_unban")],
         [InlineKeyboardButton(text="\U0001F3AE PLAY BOT", callback_data="admin_play")],
     ])
 
@@ -657,92 +659,6 @@ async def delpremium_command(message: Message):
     user_data["premium"] = {"active": False}
     update_user(uid, user_data)
     await message.answer(box("\U0001F5D1 PREMIUM REMOVED", f"User <code>{uid}</code> premium removed.") + footer())
-
-@dp.message(Command("genkey"))
-async def genkey_command(message: Message):
-    if not is_admin(message.from_user):
-        return
-    parts = (message.text or "").split()
-    if len(parts) < 2:
-        await message.answer(
-            box("\U0001F511 GENERATE KEY",
-                "Usage:\n<code>/genkey hours</code>\n\n"
-                "Examples:\n"
-                "<code>/genkey 1</code> - 1 hour key\n"
-                "<code>/genkey 24</code> - 1 day key\n"
-                "<code>/genkey 168</code> - 7 day key\n"
-                "<code>/genkey 720</code> - 30 day key"
-            ) + footer())
-        return
-    try:
-        hours = int(parts[1])
-        if hours <= 0:
-            raise ValueError
-    except ValueError:
-        await message.answer("Invalid hours. Must be a positive number.")
-        return
-    key = generate_key(hours)
-    if hours >= 24:
-        dur = f"{hours // 24} day(s)"
-    else:
-        dur = f"{hours} hour(s)"
-    await message.answer(box("\U0001F511 KEY GENERATED",
-        f"<b>Key:</b> <code>{key}</code>\n"
-        f"<b>Duration:</b> {dur}\n\n"
-        f"Share this key with user to activate premium."
-    ) + footer())
-
-@dp.message(Command("keys"))
-async def keys_command(message: Message):
-    if not is_admin(message.from_user):
-        return
-    keys = get_keys()
-    if not keys:
-        await message.answer("No keys generated yet.")
-        return
-    active = []
-    used = []
-    for k, v in keys.items():
-        if v.get("used"):
-            used.append(k)
-        else:
-            active.append(k)
-    txt = box("\U0001F511 ALL KEYS",
-        f"<b>Active:</b> <code>{len(active)}</code>\n"
-        f"<b>Used:</b> <code>{len(used)}</code>\n\n"
-    )
-    if active:
-        txt += "<b>Active Keys:</b>\n"
-        for k in active[:10]:
-            hrs = keys[k].get("hours", 0)
-            if hrs >= 24:
-                dur = f"{hrs // 24}d"
-            else:
-                dur = f"{hrs}h"
-            txt += f"<code>{k}</code> ({dur})\n"
-    if used:
-        txt += "\n<b>Used Keys:</b>\n"
-        for k in used[:10]:
-            uid = keys[k].get("used_by", "?")
-            txt += f"<code>{k}</code> → <code>{uid}</code>\n"
-    await message.answer(txt + footer())
-
-@dp.message(Command("delkey"))
-async def delkey_command(message: Message):
-    if not is_admin(message.from_user):
-        return
-    parts = (message.text or "").split()
-    if len(parts) < 2:
-        await message.answer("Usage: <code>/delkey KEY</code>\nExample: <code>/delkey ABC1-2345-6789</code>")
-        return
-    key = parts[1].strip().upper()
-    keys = get_keys()
-    if key in keys:
-        del keys[key]
-        save_keys(keys)
-        await message.answer(box("\u2705 KEY DELETED", f"Key <code>{key}</code> deleted.") + footer())
-    else:
-        await message.answer(f"Key <code>{key}</code> not found.")
 
 @dp.message(Command("activate"))
 async def activate_command(message: Message):
@@ -1148,6 +1064,95 @@ async def handle_callbacks(callback: CallbackQuery):
         ) + footer()
         try:
             await callback.message.edit_text(text=text, reply_markup=admin_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "admin_genkey":
+        if not admin:
+            return
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="1 Hour", callback_data="genkey_1"),
+             InlineKeyboardButton(text="6 Hours", callback_data="genkey_6"),
+             InlineKeyboardButton(text="12 Hours", callback_data="genkey_12")],
+            [InlineKeyboardButton(text="1 Day", callback_data="genkey_24"),
+             InlineKeyboardButton(text="3 Days", callback_data="genkey_72"),
+             InlineKeyboardButton(text="7 Days", callback_data="genkey_168")],
+            [InlineKeyboardButton(text="15 Days", callback_data="genkey_360"),
+             InlineKeyboardButton(text="30 Days", callback_data="genkey_720")],
+            [InlineKeyboardButton(text="\u25C0 BACK", callback_data="admin_panel")],
+        ])
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F511 GENERATE KEY", "Select key duration:") + footer(),
+                reply_markup=kb)
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data.startswith("genkey_"):
+        if not admin:
+            return
+        hours = int(data.replace("genkey_", ""))
+        key = generate_key(hours)
+        if hours >= 24:
+            dur = f"{hours // 24} day(s)"
+        else:
+            dur = f"{hours} hour(s)"
+        activate_cmd = f"/activate {key}"
+        txt = box("\U0001F511 KEY GENERATED",
+            f"<b>Key:</b> <code>{key}</code>\n"
+            f"<b>Duration:</b> {dur}\n\n"
+            f"Send this to user:\n"
+            f"<code>{activate_cmd}</code>"
+        ) + footer()
+        try:
+            await callback.message.edit_text(text=txt, reply_markup=admin_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "admin_keys":
+        if not admin:
+            return
+        keys = get_keys()
+        if not keys:
+            await callback.answer("No keys yet!", show_alert=True)
+            return
+        active = []
+        used = []
+        for k, v in keys.items():
+            if v.get("used"):
+                used.append(k)
+            else:
+                active.append(k)
+        txt = box("\U0001F511 ALL KEYS",
+            f"<b>Active:</b> <code>{len(active)}</code>\n"
+            f"<b>Used:</b> <code>{len(used)}</code>\n\n"
+        )
+        if active:
+            txt += "<b>Active Keys:</b>\n"
+            for k in active[:10]:
+                hrs = keys[k].get("hours", 0)
+                if hrs >= 24:
+                    dur = f"{hrs // 24}d"
+                else:
+                    dur = f"{hrs}h"
+                txt += f"<code>{k}</code> ({dur})\n"
+        if used:
+            txt += "\n<b>Used Keys:</b>\n"
+            for k in used[:10]:
+                uid = keys[k].get("used_by", "?")
+                txt += f"<code>{k}</code> → <code>{uid}</code>\n"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="\U0001F511 GENERATE NEW", callback_data="admin_genkey")],
+            [InlineKeyboardButton(text="\u25C0 BACK", callback_data="admin_panel")],
+        ])
+        try:
+            await callback.message.edit_text(text=txt + footer(), reply_markup=kb)
         except Exception:
             pass
         await callback.answer()
