@@ -24,6 +24,7 @@ IMAGES_DIR = Path(__file__).parent / "images"
 BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
 CHANNELS_FILE = BASE_DIR / "channels.json"
+KEYS_FILE = BASE_DIR / "premium_keys.json"
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -83,6 +84,38 @@ def get_channels():
 def save_channels(data):
     with _user_lock:
         _save_json(CHANNELS_FILE, data)
+
+def get_keys():
+    with _user_lock:
+        return _load_json(KEYS_FILE)
+
+def save_keys(data):
+    with _user_lock:
+        _save_json(KEYS_FILE, data)
+
+def generate_key(hours):
+    import hashlib
+    raw = f"{time.time()}{random.randint(100000,999999)}{hours}"
+    key = hashlib.md5(raw.encode()).hexdigest()[:12].upper()
+    key = f"{key[:4]}-{key[4:8]}-{key[8:]}"
+    keys = get_keys()
+    keys[key] = {
+        "hours": hours,
+        "created_by": "admin",
+        "created_at": time.time(),
+        "used": False,
+        "used_by": None,
+        "activated_at": None,
+        "expires_at": None
+    }
+    save_keys(keys)
+    return key
+
+def is_premium_active(user_data):
+    prem = user_data.get("premium", {})
+    if prem.get("active") and prem.get("end_time", 0) > time.time():
+        return True
+    return False
 
 def is_admin(user):
     return (user.username or "").lower() == ADMIN_USERNAME
@@ -182,12 +215,6 @@ def has_enough_points(user_data):
     if prem.get("active") and prem.get("end_time", 0) > time.time():
         return True
     return user_data.get("points", 0) >= REQUIRED_POINTS
-
-def is_premium_active(user_data):
-    prem = user_data.get("premium", {})
-    if prem.get("active") and prem.get("end_time", 0) > time.time():
-        return True
-    return False
 
 def points_finished(user_data):
     if user_data.get("is_admin"):
@@ -628,6 +655,142 @@ async def delpremium_command(message: Message):
     user_data["premium"] = {"active": False}
     update_user(uid, user_data)
     await message.answer(box("\U0001F5D1 PREMIUM REMOVED", f"User <code>{uid}</code> premium removed.") + footer())
+
+@dp.message(Command("genkey"))
+async def genkey_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer(
+            box("\U0001F511 GENERATE KEY",
+                "Usage:\n<code>/genkey hours</code>\n\n"
+                "Examples:\n"
+                "<code>/genkey 1</code> - 1 hour key\n"
+                "<code>/genkey 24</code> - 1 day key\n"
+                "<code>/genkey 168</code> - 7 day key\n"
+                "<code>/genkey 720</code> - 30 day key"
+            ) + footer())
+        return
+    try:
+        hours = int(parts[1])
+        if hours <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("Invalid hours. Must be a positive number.")
+        return
+    key = generate_key(hours)
+    if hours >= 24:
+        dur = f"{hours // 24} day(s)"
+    else:
+        dur = f"{hours} hour(s)"
+    await message.answer(box("\U0001F511 KEY GENERATED",
+        f"<b>Key:</b> <code>{key}</code>\n"
+        f"<b>Duration:</b> {dur}\n\n"
+        f"Share this key with user to activate premium."
+    ) + footer())
+
+@dp.message(Command("keys"))
+async def keys_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    keys = get_keys()
+    if not keys:
+        await message.answer("No keys generated yet.")
+        return
+    active = []
+    used = []
+    for k, v in keys.items():
+        if v.get("used"):
+            used.append(k)
+        else:
+            active.append(k)
+    txt = box("\U0001F511 ALL KEYS",
+        f"<b>Active:</b> <code>{len(active)}</code>\n"
+        f"<b>Used:</b> <code>{len(used)}</code>\n\n"
+    )
+    if active:
+        txt += "<b>Active Keys:</b>\n"
+        for k in active[:10]:
+            hrs = keys[k].get("hours", 0)
+            if hrs >= 24:
+                dur = f"{hrs // 24}d"
+            else:
+                dur = f"{hrs}h"
+            txt += f"<code>{k}</code> ({dur})\n"
+    if used:
+        txt += "\n<b>Used Keys:</b>\n"
+        for k in used[:10]:
+            uid = keys[k].get("used_by", "?")
+            txt += f"<code>{k}</code> → <code>{uid}</code>\n"
+    await message.answer(txt + footer())
+
+@dp.message(Command("delkey"))
+async def delkey_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer("Usage: <code>/delkey KEY</code>\nExample: <code>/delkey ABC1-2345-6789</code>")
+        return
+    key = parts[1].strip().upper()
+    keys = get_keys()
+    if key in keys:
+        del keys[key]
+        save_keys(keys)
+        await message.answer(box("\u2705 KEY DELETED", f"Key <code>{key}</code> deleted.") + footer())
+    else:
+        await message.answer(f"Key <code>{key}</code> not found.")
+
+@dp.message(Command("activate"))
+async def activate_command(message: Message):
+    user_id = message.from_user.id
+    user_data = get_user(user_id)
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer(
+            box("\U0001F511 ACTIVATE PREMIUM",
+                "Enter your premium key:\n\n"
+                "<code>/activate XXXX-XXXX-XXXX</code>\n\n"
+                "Get key from admin to activate premium."
+            ) + footer())
+        return
+    key = parts[1].strip().upper()
+    keys = get_keys()
+    if key not in keys:
+        await message.answer(box("\u274C INVALID KEY", "This key does not exist.") + footer())
+        return
+    key_data = keys[key]
+    if key_data.get("used"):
+        await message.answer(box("\u274C KEY USED", "This key has already been used.") + footer())
+        return
+    hours = key_data.get("hours", 1)
+    start_time = time.time()
+    end_time = start_time + (hours * 3600)
+    user_data["premium"] = {
+        "active": True,
+        "start_time": start_time,
+        "end_time": end_time,
+        "key": key,
+        "hours": hours
+    }
+    update_user(user_id, user_data)
+    keys[key]["used"] = True
+    keys[key]["used_by"] = user_id
+    keys[key]["activated_at"] = start_time
+    keys[key]["expires_at"] = end_time
+    save_keys(keys)
+    if hours >= 24:
+        dur = f"{hours // 24} day(s)"
+    else:
+        dur = f"{hours} hour(s)"
+    from datetime import datetime
+    end_dt = datetime.fromtimestamp(end_time).strftime("%d %b %Y %I:%M %p")
+    await message.answer(box("\u2705 PREMIUM ACTIVATED!",
+        f"<b>Duration:</b> {dur}\n"
+        f"<b>Expires:</b> {end_dt}\n\n"
+        "Enjoy full bot access!"
+    ) + footer())
 
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
