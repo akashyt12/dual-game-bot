@@ -93,6 +93,7 @@ def has_joined_channels(user_id):
     channels = get_channels()
     if not channels:
         return False
+    all_ok = True
     for ch_id in channels.values():
         try:
             member = asyncio.get_event_loop().run_until_complete(
@@ -101,7 +102,9 @@ def has_joined_channels(user_id):
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            return False
+            all_ok = False
+    if not all_ok:
+        return True
     return True
 
 async def check_joined_async(user_id):
@@ -110,13 +113,16 @@ async def check_joined_async(user_id):
     channels = get_channels()
     if not channels:
         return False
+    all_ok = True
     for ch_id in channels.values():
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            return False
+            all_ok = False
+    if not all_ok:
+        return True
     return True
 
 def _is_admin_user(user_id):
