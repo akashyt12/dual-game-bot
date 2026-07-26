@@ -190,7 +190,7 @@ def check_rate_limit(user_id, action, cooldown=1.0):
 
 async def send_or_edit(chat_id, user_id, text, reply_markup=None, parse_mode="HTML"):
     old_msg_id = _last_bot_msg.get(user_id)
-    if old_msg_id:
+    if old_msg_id and old_msg_id != _profit_messages.get(user_id):
         try:
             await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
         except Exception:
@@ -201,7 +201,7 @@ async def send_or_edit(chat_id, user_id, text, reply_markup=None, parse_mode="HT
 
 async def send_section(chat_id, user_id, image_name, text, reply_markup=None):
     old_msg_id = _last_bot_msg.get(user_id)
-    if old_msg_id:
+    if old_msg_id and old_msg_id != _profit_messages.get(user_id):
         try:
             await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
         except Exception:
