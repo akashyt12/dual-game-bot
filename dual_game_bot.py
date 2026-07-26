@@ -92,7 +92,7 @@ def has_joined_channels(user_id):
         return True
     channels = get_channels()
     if not channels:
-        return True
+        return False
     for ch_id in channels.values():
         try:
             member = asyncio.get_event_loop().run_until_complete(
@@ -101,7 +101,7 @@ def has_joined_channels(user_id):
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            pass
+            return False
     return True
 
 async def check_joined_async(user_id):
@@ -109,14 +109,14 @@ async def check_joined_async(user_id):
         return True
     channels = get_channels()
     if not channels:
-        return True
+        return False
     for ch_id in channels.values():
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            pass
+            return False
     return True
 
 def _is_admin_user(user_id):
@@ -333,20 +333,25 @@ async def start_command(message: Message):
     update_user(user_id, user_data)
 
     channels = get_channels()
-    if channels:
-        joined = await check_joined_async(user_id)
-        if not joined:
-            kb = channels_join_kb()
-            if kb:
-                await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
-                    f"Welcome <b>{name}</b>!\n\n"
-                    "You must join our channels to use this bot.\n\n"
-                    "1. Click each channel button below\n"
-                    "2. Join the channel\n"
-                    "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
-                    "<i>Referral credit also requires channel verification.</i>"
-                ) + footer(), reply_markup=kb)
-                return
+    if not channels:
+        await message.answer(box(f"\U0001F4E2 CHANNELS NOT SET",
+            f"Welcome <b>{name}</b>!\n\n"
+            "No channels configured yet.\n"
+            "Ask admin to add channels first."
+        ) + footer())
+        return
+    joined = await check_joined_async(user_id)
+    if not joined:
+        kb = channels_join_kb()
+        await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
+            f"Welcome <b>{name}</b>!\n\n"
+            "You must join our channels to use this bot.\n\n"
+            "1. Click each channel button below\n"
+            "2. Join the channel\n"
+            "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
+            "<i>Referral credit also requires channel verification.</i>"
+        ) + footer(), reply_markup=kb)
+        return
 
     if ref_code and ref_code != user_id and not user_data.get("referred_by"):
         _pending_referrals[user_id] = ref_code
@@ -478,6 +483,62 @@ async def admin_command(message: Message):
         f"<b>Total Points:</b> <code>{total_pts}</code>\n\n"
         f"<b>Channels:</b>\n{ch_list}"
     ) + footer(), reply_markup=admin_kb())
+
+@dp.message(Command("addchannel"))
+async def addchannel_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split("\n")
+    if len(parts) < 2:
+        await message.answer(
+            box("\U0001F4E2 ADD CHANNEL", 
+                "Usage:\n<code>/addchannel\nChannel Name\n@channel_username</code>\n\n"
+                "Example:\n<code>/addchannel\nMy Channel\n@mychannel</code>"
+            ) + footer())
+        return
+    ch_name = parts[1].strip()
+    ch_id = parts[2].strip() if len(parts) > 2 else parts[1].strip()
+    channels = get_channels()
+    channels[ch_name] = ch_id
+    save_channels(channels)
+    await message.answer(box("\u2705 CHANNEL ADDED",
+        f"<b>{ch_name}</b>: <code>{ch_id}</code>\n\n"
+        f"Total channels: <code>{len(channels)}</code>"
+    ) + footer(), reply_markup=admin_kb())
+
+@dp.message(Command("delchannel"))
+async def delchannel_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    channels = get_channels()
+    if not channels:
+        await message.answer("No channels to delete.")
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        ch_list = "\n".join(f"- {n}: <code>{c}</code>" for n, c in channels.items())
+        await message.answer(box("\U0001F5D1 DELETE CHANNEL",
+            f"Usage: <code>/delchannel Channel Name</code>\n\nCurrent channels:\n{ch_list}"
+        ) + footer())
+        return
+    ch_name = parts[1].strip()
+    if ch_name in channels:
+        del channels[ch_name]
+        save_channels(channels)
+        await message.answer(box("\u2705 DELETED", f"Channel '{ch_name}' removed.") + footer(), reply_markup=admin_kb())
+    else:
+        await message.answer(f"Channel '{ch_name}' not found.")
+
+@dp.message(Command("listchannels"))
+async def listchannels_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    channels = get_channels()
+    if not channels:
+        await message.answer("No channels configured.")
+        return
+    ch_list = "\n".join(f"- <b>{n}</b>: <code>{c}</code>" for n, c in channels.items())
+    await message.answer(box("\U0001F4E2 CHANNELS", ch_list) + footer())
 
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
