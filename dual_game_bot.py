@@ -41,6 +41,7 @@ _active_bots = {}
 _profit_messages = {}
 _rate_limits = {}
 _last_bot_msg = {}
+_pending_referrals = {}
 
 # ============================================
 # STORAGE
@@ -327,36 +328,30 @@ async def start_command(message: Message):
             "You are banned from this bot.\nContact admin.") + footer())
         return
 
-    if ref_code and ref_code != user_id and not user_data.get("referred_by"):
-        referrer_data = get_user(ref_code)
-        referrer_data.setdefault("referrals", [])
-        if user_id not in referrer_data["referrals"]:
-            referrer_data["referrals"].append(user_id)
-            referrer_data["points"] = referrer_data.get("points", 0) + REFERRAL_POINTS
-            update_user(ref_code, referrer_data)
-            try:
-                await bot.send_message(ref_code, box("\U0001F389 NEW REFERRAL!",
-                    f"User <b>{name}</b> joined via your link!\n\n"
-                    f"<b>+{REFERRAL_POINTS} points</b> added!\n"
-                    f"Total referrals: <code>{len(referrer_data['referrals'])}</code>\n"
-                    f"Total points: <code>{referrer_data.get('points', 0)}</code>"
-                ) + footer())
-            except Exception:
-                pass
-
     user_data["name"] = name
     user_data["username"] = username
     update_user(user_id, user_data)
 
-    joined = await check_joined_async(user_id)
-    if not joined:
-        await message.answer(box(f"\U0001F4E2 JOIN CHANNELS",
-            f"Welcome <b>{name}</b>!\n\n"
-            "Join our channels first to use the bot.\n\n"
-            "Click the buttons below to join, then press\n"
-            "<b>\u2705 I HAVE JOINED</b> to verify."
-        ) + footer(), reply_markup=channels_join_kb())
-        return
+    channels = get_channels()
+    if channels:
+        joined = await check_joined_async(user_id)
+        if not joined:
+            kb = channels_join_kb()
+            if kb:
+                await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
+                    f"Welcome <b>{name}</b>!\n\n"
+                    "You must join our channels to use this bot.\n\n"
+                    "1. Click each channel button below\n"
+                    "2. Join the channel\n"
+                    "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
+                    "<i>Referral credit also requires channel verification.</i>"
+                ) + footer(), reply_markup=kb)
+                return
+
+    if ref_code and ref_code != user_id and not user_data.get("referred_by"):
+        _pending_referrals[user_id] = ref_code
+    elif ref_code and ref_code != user_id and user_data.get("referred_by"):
+        pass
 
     if not has_enough_points(user_data) and not user_data.get("is_admin"):
         pts = user_data.get("points", 0)
@@ -400,8 +395,31 @@ async def check_joined_callback(callback: CallbackQuery):
         return
     joined = await check_joined_async(user_id)
     if not joined:
-        await callback.answer("\u274C You haven't joined all channels yet!\nPlease join all channels first.", show_alert=True)
+        await callback.answer("\u274C Not yet! Join ALL channels first, then click I HAVE JOINED.", show_alert=True)
         return
+
+    if user_id in _pending_referrals:
+        ref_code = _pending_referrals.pop(user_id)
+        user_data = get_user(user_id)
+        if not user_data.get("referred_by") and ref_code != user_id:
+            user_data["referred_by"] = ref_code
+            update_user(user_id, user_data)
+            referrer_data = get_user(ref_code)
+            referrer_data.setdefault("referrals", [])
+            if user_id not in referrer_data["referrals"]:
+                referrer_data["referrals"].append(user_id)
+                referrer_data["points"] = referrer_data.get("points", 0) + REFERRAL_POINTS
+                update_user(ref_code, referrer_data)
+                try:
+                    await bot.send_message(ref_code, box("\U0001F389 NEW REFERRAL!",
+                        f"User <b>{safe_str(callback.from_user.first_name or 'User', 50)}</b> joined via your link!\n\n"
+                        f"<b>+{REFERRAL_POINTS} points</b> added!\n"
+                        f"Total referrals: <code>{len(referrer_data['referrals'])}</code>\n"
+                        f"Total points: <code>{referrer_data.get('points', 0)}</code>"
+                    ) + footer())
+                except Exception:
+                    pass
+
     user_data = get_user(user_id)
     if not has_enough_points(user_data):
         pts = user_data.get("points", 0)
