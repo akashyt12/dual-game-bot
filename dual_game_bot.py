@@ -178,7 +178,16 @@ def has_access(user_data):
 def has_enough_points(user_data):
     if user_data.get("is_admin"):
         return True
+    prem = user_data.get("premium", {})
+    if prem.get("active") and prem.get("end_time", 0) > time.time():
+        return True
     return user_data.get("points", 0) >= REQUIRED_POINTS
+
+def is_premium_active(user_data):
+    prem = user_data.get("premium", {})
+    if prem.get("active") and prem.get("end_time", 0) > time.time():
+        return True
+    return False
 
 def points_finished(user_data):
     if user_data.get("is_admin"):
@@ -245,6 +254,7 @@ def main_menu_kb():
          InlineKeyboardButton(text="\U0001F6D1 STOP", callback_data="stop_bot")],
         [InlineKeyboardButton(text="\U0001F504 SWITCH", callback_data="switch_platform"),
          InlineKeyboardButton(text="\U0001F4DD REFER", callback_data="check_referrals")],
+        [InlineKeyboardButton(text="\U0001F48E PREMIUM", callback_data="premium_info")],
         [InlineKeyboardButton(text="\U0001F464 USER INFO", callback_data="user_info")],
     ])
 
@@ -547,6 +557,76 @@ async def listchannels_command(message: Message):
     ch_list = "\n".join(f"- <b>{n}</b>: <code>{c}</code>" for n, c in channels.items())
     await message.answer(box("\U0001F4E2 CHANNELS", ch_list) + footer())
 
+@dp.message(Command("setpremium"))
+async def setpremium_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 3:
+        await message.answer(
+            box("\U0001F48E SET PREMIUM",
+                "Usage:\n<code>/setpremium user_id days</code>\n\n"
+                "Days: 1, 2, 3, 7, 30\n\n"
+                "Example:\n<code>/setpremium 123456789 7</code>"
+            ) + footer())
+        return
+    try:
+        uid = int(parts[1])
+        days = int(parts[2])
+    except ValueError:
+        await message.answer("Invalid user_id or days.")
+        return
+    user_data = get_user(uid)
+    if not user_data:
+        await message.answer(f"User <code>{uid}</code> not found.")
+        return
+    start_time = time.time()
+    end_time = start_time + (days * 86400)
+    user_data["premium"] = {
+        "active": True,
+        "start_time": start_time,
+        "end_time": end_time,
+        "days": days
+    }
+    update_user(uid, user_data)
+    from datetime import datetime
+    end_dt = datetime.fromtimestamp(end_time).strftime("%d %b %Y %I:%M %p")
+    await message.answer(box("\U0001F48E PREMIUM ACTIVATED",
+        f"<b>User:</b> <code>{uid}</code>\n"
+        f"<b>Duration:</b> {days} days\n"
+        f"<b>Expires:</b> {end_dt}"
+    ) + footer())
+    try:
+        await bot.send_message(uid, box("\U0001F48E PREMIUM ACTIVATED!",
+            f"Your premium access is now active!\n\n"
+            f"<b>Duration:</b> {days} days\n"
+            f"<b>Expires:</b> {end_dt}\n\n"
+            "Enjoy full bot access!"
+        ) + footer())
+    except Exception:
+        pass
+
+@dp.message(Command("delpremium"))
+async def delpremium_command(message: Message):
+    if not is_admin(message.from_user):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer("Usage: <code>/delpremium user_id</code>")
+        return
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        await message.answer("Invalid user_id.")
+        return
+    user_data = get_user(uid)
+    if not user_data:
+        await message.answer(f"User <code>{uid}</code> not found.")
+        return
+    user_data["premium"] = {"active": False}
+    update_user(uid, user_data)
+    await message.answer(box("\U0001F5D1 PREMIUM REMOVED", f"User <code>{uid}</code> premium removed.") + footer())
+
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
     if not is_admin(message.from_user):
@@ -726,6 +806,13 @@ async def handle_callbacks(callback: CallbackQuery):
         if user_id in _active_bots:
             total_won = _active_bots[user_id].get("total_won", 0)
             total_lost = _active_bots[user_id].get("total_lost", 0)
+        prem = user_data.get("premium", {})
+        if prem.get("active") and prem.get("end_time", 0) > time.time():
+            from datetime import datetime
+            end_dt = datetime.fromtimestamp(prem["end_time"]).strftime("%d %b %Y")
+            prem_status = f"\u2705 Active (expires {end_dt})"
+        else:
+            prem_status = "\u274C Not active"
         txt = box("\U0001F464 USER INFO",
             f"<b>Name:</b> {name}\n"
             f"<b>Username:</b> @{uname}\n"
@@ -733,6 +820,7 @@ async def handle_callbacks(callback: CallbackQuery):
             f"<b>User ID:</b> <code>{user_id}</code>\n\n"
             f"<b>Points:</b> <code>{pts}</code>\n"
             f"<b>Referrals:</b> <code>{refs}</code>\n"
+            f"<b>Premium:</b> {prem_status}\n\n"
             f"<b>Total Won:</b> <code>{total_won:.2f}</code>\n"
             f"<b>Total Lost:</b> <code>{total_lost:.2f}</code>"
         ) + footer()
@@ -741,6 +829,51 @@ async def handle_callbacks(callback: CallbackQuery):
         except Exception:
             pass
         await send_or_edit(callback.message.chat.id, user_id, txt, reply_markup=back_kb())
+        await callback.answer()
+        return
+
+    if data == "premium_info":
+        prem = user_data.get("premium", {})
+        is_premium = prem.get("active", False)
+        if is_premium:
+            end_time = prem.get("end_time", 0)
+            from datetime import datetime
+            end_dt = datetime.fromtimestamp(end_time).strftime("%d %b %Y %I:%M %p") if end_time else "N/A"
+            remaining = end_time - time.time()
+            if remaining > 86400:
+                rem_str = f"{int(remaining // 86400)}d {int((remaining % 86400) // 3600)}h"
+            elif remaining > 3600:
+                rem_str = f"{int(remaining // 3600)}h {int((remaining % 3600) // 60)}m"
+            else:
+                rem_str = f"{int(remaining // 60)}m"
+            txt = box("\U0001F48E PREMIUM ACTIVE",
+                f"<b>Status:</b> \u2705 Active\n"
+                f"<b>Expires:</b> {end_dt}\n"
+                f"<b>Remaining:</b> {rem_str}\n\n"
+                "You have full access to bot features!"
+            ) + footer()
+        else:
+            admin_user = await bot.get_me()
+            admin_username = ADMIN_USERNAME
+            txt = box("\U0001F48E PREMIUM ACCESS",
+                "Get unlimited bot access with Premium!\n\n"
+                "<b>Pricing:</b>\n"
+                "\U0001F538 <b>1 Day</b> - \u20B9100\n"
+                "\U0001F538 <b>2 Days</b> - \u20B9199\n"
+                "\U0001F538 <b>3 Days</b> - \u20B9249\n"
+                "\U0001F538 <b>7 Days</b> - \u20B9599\n"
+                "\U0001F538 <b>1 Month</b> - \u20B9999\n\n"
+                f"DM @{admin_username} to purchase!"
+            ) + footer()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        prem_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"\U0001F4AC DM @{ADMIN_USERNAME}", url=f"https://t.me/{ADMIN_USERNAME}")],
+            [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")],
+        ])
+        await send_or_edit(callback.message.chat.id, user_id, txt, reply_markup=prem_kb)
         await callback.answer()
         return
 
