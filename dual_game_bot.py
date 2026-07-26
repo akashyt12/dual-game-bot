@@ -1972,7 +1972,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
                         bot_state["double_win"] += 1
                         bot_state["wins"] += 1
                         bot_state["level"] = 0
-                        bot_state["total_won"] += pending["total_bet"]
+                        bot_state["total_won"] += pending["total_bet"] * 0.98
                     elif bs_match or color_match:
                         result = "BREAK EVEN"
                     else:
@@ -2145,7 +2145,7 @@ async def run_betting_51(user_id, chat_id, user_data):
                         bot_state["double_win"] += 1
                         bot_state["wins"] += 1
                         bot_state["level"] = 0
-                        bot_state["total_won"] += pending["total_bet"]
+                        bot_state["total_won"] += pending["total_bet"] * 0.98
                     elif bs_match or color_match:
                         result = "BREAK EVEN"
                     else:
@@ -2261,11 +2261,16 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
     s_text = s_map.get(status, status)
     sign = "+" if profit >= 0 else ""
     tgt = f"{target}% OK" if pct >= target else f"{target}%"
+    won = bot_state.get("total_won", 0)
+    lost = bot_state.get("total_lost", 0)
     return box(f"\U0001F4B0 {platform}", (
         f"<b>Status:</b> {s_text}\n\n"
         f"<b>Profit:</b> <code>{sign}{profit:.2f}</code>\n"
         f"<b>%:</b> <code>{sign}{pct:.1f}%</code>\n"
         f"<b>Target:</b> <code>{tgt}</code>\n\n"
+        f"<b>Won:</b> <code>{won:.2f}</code> | "
+        f"<b>Lost:</b> <code>{lost:.2f}</code>\n"
+        f"<b>Tax:</b> <code>2%</code> on winnings\n\n"
         f"<b>Wins:</b> <code>{bot_state.get('wins',0)}</code> | "
         f"<b>Losses:</b> <code>{bot_state.get('losses',0)}</code>\n"
         f"<b>DW:</b> <code>{bot_state.get('double_win',0)}</code> | "
