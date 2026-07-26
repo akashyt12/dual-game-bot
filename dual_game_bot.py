@@ -289,10 +289,10 @@ def safe_str(val, max_len=200):
     return escape(str(val).strip()[:max_len])
 
 def box(title, body):
-    return f"{'='*24}\n  <b>{title}</b>\n{'='*24}\n\n{body}"
+    return f"╔{'═'*22}╗\n  « <b>{title}</b> »\n╚{'═'*22}╝\n\n❝ {body} ❞"
 
 def footer():
-    return f"\n\n<i>{BOT_VERSION} | Created by {CREATOR} | Play at own risk</i>"
+    return f"\n\n<i>╰ {BOT_VERSION} │ {CREATOR} │ Play at own risk ╯</i>"
 
 def channels_join_kb():
     channels = get_channels()
@@ -428,6 +428,7 @@ async def start_command(message: Message):
 
     user_data["name"] = name
     user_data["username"] = username
+    user_data["logged_in"] = False
     update_user(user_id, user_data)
 
     channels = get_channels()
@@ -1238,12 +1239,20 @@ async def handle_callbacks(callback: CallbackQuery):
         key = data.replace("delkey_", "")
         keys = get_keys()
         if key in keys:
+            used_by = keys[key].get("used_by")
             del keys[key]
             save_keys(keys)
+            if used_by:
+                user_data_del = get_user(used_by)
+                if user_data_del.get("premium", {}).get("key") == key:
+                    user_data_del["premium"] = {"active": False}
+                    update_user(used_by, user_data_del)
+                    if used_by in _active_bots and _active_bots[used_by].get("running"):
+                        _active_bots[used_by]["running"] = False
             await callback.answer(f"Deleted {key}!", show_alert=True)
             try:
                 await callback.message.edit_text(
-                    text=box("\u2705 KEY DELETED", f"Key <code>{key}</code> deleted.") + footer(),
+                    text=box("\u2705 KEY DELETED", f"Key <code>{key}</code> deleted.\nUser premium revoked.") + footer(),
                     reply_markup=admin_kb())
             except Exception:
                 pass
