@@ -1463,6 +1463,22 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "start_bot":
         if not user_data.get("logged_in"):
             await callback.answer("\U0001F511 Login first! /login", show_alert=True)
+            _user_states[user_id] = "login"
+            platform = user_data.get("platform", "jai")
+            if platform == "jai":
+                title = "\U0001F511 JAI CLUB LOGIN"
+                body = "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>"
+            else:
+                title = "\U0001F511 51GAME LOGIN"
+                body = "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>"
+            try:
+                await callback.message.edit_text(text=box(title, body) + footer())
+            except Exception:
+                try:
+                    await callback.message.delete()
+                except Exception:
+                    pass
+                await send_or_edit(callback.message.chat.id, user_id, box(title, body) + footer())
             return
         if not user_data.get("start_balance"):
             _user_states[user_id] = "set_amount"
