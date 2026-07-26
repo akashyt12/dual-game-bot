@@ -93,7 +93,7 @@ def has_joined_channels(user_id):
     channels = get_channels()
     if not channels:
         return False
-    all_ok = True
+    all_checked = True
     for ch_id in channels.values():
         try:
             member = asyncio.get_event_loop().run_until_complete(
@@ -102,9 +102,9 @@ def has_joined_channels(user_id):
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            all_ok = False
-    if not all_ok:
-        return True
+            all_checked = False
+    if not all_checked:
+        return False
     return True
 
 async def check_joined_async(user_id):
@@ -113,16 +113,16 @@ async def check_joined_async(user_id):
     channels = get_channels()
     if not channels:
         return False
-    all_ok = True
+    all_checked = True
     for ch_id in channels.values():
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            all_ok = False
-    if not all_ok:
-        return True
+            all_checked = False
+    if not all_checked:
+        return False
     return True
 
 def _is_admin_user(user_id):
@@ -351,16 +351,49 @@ async def start_command(message: Message):
     if ref_code and ref_code != user_id and not user_data.get("referred_by"):
         _pending_referrals[user_id] = ref_code
 
-    kb = channels_join_kb()
-    await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
+    joined = await check_joined_async(user_id)
+    if not joined:
+        kb = channels_join_kb()
+        await message.answer(box(f"\U0001F4E2 JOIN CHANNELS FIRST",
+            f"Welcome <b>{name}</b>!\n\n"
+            "You must join our channels to use this bot.\n\n"
+            "1. Click each channel button below\n"
+            "2. Join the channel\n"
+            "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
+            "<i>Referral credit also requires channel verification.</i>"
+        ) + footer(), reply_markup=kb)
+        return
+
+    if not has_enough_points(user_data) and not user_data.get("is_admin"):
+        pts = user_data.get("points", 0)
+        refs = len(user_data.get("referrals", []))
+        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
+        await message.answer(box(f"\U0001F4B0 NEED {REQUIRED_POINTS} POINTS",
+            f"Welcome <b>{name}</b>!\n\n"
+            f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n"
+            f"<b>Referrals:</b> <code>{refs}</code>\n\n"
+            f"Share your referral link:\n<code>{ref_link}</code>\n\n"
+            f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
+            f"<i>Need {REQUIRED_POINTS} points to access bot</i>"
+        ) + footer(), reply_markup=referral_only_kb(user_id))
+        return
+
+    pts = user_data.get("points", 0)
+    image = img("main_menu.png")
+    text = box(f"\U0001F3B0 {BOT_VERSION}",
         f"Welcome <b>{name}</b>!\n\n"
-        "You must join our channels to use this bot.\n\n"
-        "1. Click each channel button below\n"
-        "2. Join the channel\n"
-        "3. Come back and click <b>\u2705 I HAVE JOINED</b>\n\n"
-        "<i>Referral credit also requires channel verification.</i>"
-    ) + footer(), reply_markup=kb)
-    return
+        f"<b>Points:</b> <code>{pts}</code>\n\n"
+        "Choose an option:"
+    ) + footer()
+    try:
+        if image:
+            await bot.send_photo(chat_id=message.chat.id, photo=FSInputFile(image),
+                caption=text, parse_mode="HTML", reply_markup=main_menu_kb())
+        else:
+            await message.answer(text=text, reply_markup=main_menu_kb())
+    except Exception as e:
+        logger.error(f"start error: {e}")
+        await message.answer(text=text, reply_markup=platform_select_kb())
 
 # ============================================
 # CHECK JOINED CALLBACK
@@ -370,6 +403,11 @@ async def check_joined_callback(callback: CallbackQuery):
     user_id = callback.from_user.id
     if is_admin(callback.from_user):
         await callback.answer("Admin bypass!", show_alert=False)
+        return
+
+    joined = await check_joined_async(user_id)
+    if not joined:
+        await callback.answer("\u274C Not yet! Join ALL channels first, then click I HAVE JOINED.", show_alert=True)
         return
 
     if user_id in _pending_referrals:
