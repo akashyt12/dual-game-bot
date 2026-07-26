@@ -289,6 +289,7 @@ def admin_kb():
         [InlineKeyboardButton(text="\U0001F4CA STATS", callback_data="admin_stats")],
         [InlineKeyboardButton(text="\U0001F4E2 ADD CHANNEL", callback_data="admin_addch")],
         [InlineKeyboardButton(text="\U0001F5D1 DEL CHANNEL", callback_data="admin_delch")],
+        [InlineKeyboardButton(text="\U0001F916 BOT AS CHANNEL ADMIN", callback_data="admin_promote_bot")],
         [InlineKeyboardButton(text="\U0001F464 ADD POINTS", callback_data="admin_addpts")],
         [InlineKeyboardButton(text="\U0001F6AB BAN USER", callback_data="admin_ban")],
         [InlineKeyboardButton(text="\u2705 UNBAN USER", callback_data="admin_unban")],
@@ -820,6 +821,36 @@ async def handle_callbacks(callback: CallbackQuery):
                 pass
         else:
             await callback.answer("Not found!", show_alert=True)
+        return
+
+    if data == "admin_promote_bot":
+        if not admin:
+            return
+        channels = get_channels()
+        if not channels:
+            await callback.answer("No channels! Add channels first.", show_alert=True)
+            return
+        bot_info = await bot.get_me()
+        bot_username = bot_info.username
+        ch_list = "\n".join(f"- <b>{n}</b>: <code>{c}</code>" for n, c in channels.items())
+        text = box("\U0001F916 BOT AS CHANNEL ADMIN",
+            "To verify user joins, bot must be <b>admin</b> in channel.\n\n"
+            f"<b>Steps:</b>\n"
+            "1. Open your channel in Telegram\n"
+            "2. Go to channel settings (click channel name)\n"
+            "3. Click <b>Administrators</b>\n"
+            "4. Click <b>Add Admin</b>\n"
+            f"5. Search: <code>@{bot_username}</code>\n"
+            "6. Give <b>Read Messages</b> permission\n"
+            "7. Save\n\n"
+            f"<b>Your Channels:</b>\n{ch_list}\n\n"
+            f"<i>Bot username:</i> <code>@{bot_username}</code>"
+        ) + footer()
+        try:
+            await callback.message.edit_text(text=text, reply_markup=admin_kb())
+        except Exception:
+            pass
+        await callback.answer()
         return
 
     if data == "admin_addpts":
