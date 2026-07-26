@@ -25,6 +25,7 @@ BASE_DIR = Path("/home/akash/mimo-test")
 USERS_FILE = BASE_DIR / "users.json"
 CHANNELS_FILE = BASE_DIR / "channels.json"
 KEYS_FILE = BASE_DIR / "premium_keys.json"
+CONFIG_FILE = BASE_DIR / "bot_config.json"
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -110,6 +111,22 @@ def generate_key(hours):
     }
     save_keys(keys)
     return key
+
+def load_config():
+    data = _load_json(CONFIG_FILE)
+    return {
+        "required_points": data.get("required_points", REQUIRED_POINTS),
+        "referral_points": data.get("referral_points", 50),
+    }
+
+def save_config(data):
+    _save_json(CONFIG_FILE, data)
+
+def get_required_points():
+    return load_config()["required_points"]
+
+def get_referral_points():
+    return load_config()["referral_points"]
 
 def is_premium_active(user_data):
     prem = user_data.get("premium", {})
@@ -214,7 +231,7 @@ def has_enough_points(user_data):
     prem = user_data.get("premium", {})
     if prem.get("active") and prem.get("end_time", 0) > time.time():
         return True
-    return user_data.get("points", 0) >= REQUIRED_POINTS
+    return user_data.get("points", 0) >= get_required_points()
 
 def points_finished(user_data):
     if user_data.get("is_admin"):
@@ -333,7 +350,9 @@ def admin_kb():
         [InlineKeyboardButton(text="\U0001F916 BOT AS CHANNEL ADMIN", callback_data="admin_promote_bot")],
         [InlineKeyboardButton(text="\U0001F464 ADD POINTS", callback_data="admin_addpts")],
         [InlineKeyboardButton(text="\U0001F511 GENERATE KEY", callback_data="admin_genkey")],
-        [InlineKeyboardButton(text="\U0001F511 ALL KEYS", callback_data="admin_keys")],
+        [InlineKeyboardButton(text="\U0001F511 ALL KEYS", callback_data="admin_keys"),
+         InlineKeyboardButton(text="\U0001F5D1 DEL KEY", callback_data="admin_delkey")],
+        [InlineKeyboardButton(text="\U0001F4DD EDIT REFERRALS", callback_data="admin_editref")],
         [InlineKeyboardButton(text="\U0001F6AB BAN USER", callback_data="admin_ban"),
          InlineKeyboardButton(text="\u2705 UNBAN USER", callback_data="admin_unban")],
         [InlineKeyboardButton(text="\U0001F3AE PLAY BOT", callback_data="admin_play")],
@@ -416,7 +435,7 @@ async def start_command(message: Message):
             f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n"
             f"<b>Referrals:</b> <code>{refs}</code>\n\n"
             f"Share your referral link:\n<code>{ref_link}</code>\n\n"
-            f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
+            f"<i>Each referral = {get_referral_points()} points</i>\n"
             f"<i>Need {REQUIRED_POINTS} points to access bot</i>"
         ) + footer(), reply_markup=referral_only_kb(user_id))
         return
@@ -463,12 +482,12 @@ async def check_joined_callback(callback: CallbackQuery):
             referrer_data.setdefault("referrals", [])
             if user_id not in referrer_data["referrals"]:
                 referrer_data["referrals"].append(user_id)
-                referrer_data["points"] = referrer_data.get("points", 0) + REFERRAL_POINTS
+                referrer_data["points"] = referrer_data.get("points", 0) + get_referral_points()
                 update_user(ref_code, referrer_data)
                 try:
                     await bot.send_message(ref_code, box("\U0001F389 NEW REFERRAL!",
                         f"User <b>{safe_str(callback.from_user.first_name or 'User', 50)}</b> joined via your link!\n\n"
-                        f"<b>+{REFERRAL_POINTS} points</b> added!\n"
+                        f"<b>+{get_referral_points()} points</b> added!\n"
                         f"Total referrals: <code>{len(referrer_data['referrals'])}</code>\n"
                         f"Total points: <code>{referrer_data.get('points', 0)}</code>"
                     ) + footer())
@@ -485,7 +504,7 @@ async def check_joined_callback(callback: CallbackQuery):
                     f"Welcome <b>{safe_str(callback.from_user.first_name or 'User', 50)}</b>!\n\n"
                     f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
                     f"Share referral link:\n<code>{ref_link}</code>\n\n"
-                    f"<i>Each referral = {REFERRAL_POINTS} points</i>"
+                    f"<i>Each referral = {get_referral_points()} points</i>"
                 ) + footer(), reply_markup=referral_only_kb(user_id))
         except Exception:
             pass
@@ -794,7 +813,7 @@ async def refer_command(message: Message):
         f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
         f"<b>Referrals:</b> <code>{refs}</code>\n"
         f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
-        f"<i>Each referral = {REFERRAL_POINTS} points</i>\n"
+        f"<i>Each referral = {get_referral_points()} points</i>\n"
         f"<i>Need {REQUIRED_POINTS} points to use bot</i>"
     ) + footer())
 
@@ -866,7 +885,7 @@ async def handle_callbacks(callback: CallbackQuery):
             f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
             f"<b>Referrals:</b> <code>{refs}</code>\n"
             f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
-            f"<i>Share to earn {REFERRAL_POINTS} pts per referral</i>"
+            f"<i>Share to earn {get_referral_points()} pts per referral</i>"
         ) + footer()
         try:
             await callback.message.delete()
@@ -1158,6 +1177,100 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer()
         return
 
+    if data == "admin_delkey":
+        if not admin:
+            return
+        keys = get_keys()
+        if not keys:
+            await callback.answer("No keys!", show_alert=True)
+            return
+        buttons = []
+        for k, v in keys.items():
+            hrs = v.get("hours", 0)
+            if hrs >= 24:
+                dur = f"{hrs // 24}d"
+            else:
+                dur = f"{hrs}h"
+            status = "USED" if v.get("used") else "ACTIVE"
+            buttons.append([InlineKeyboardButton(text=f"\U0001F5D1 {k} ({dur}) {status}", callback_data=f"delkey_{k}")])
+        buttons.append([InlineKeyboardButton(text="\u25C0 BACK", callback_data="admin_panel")])
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F5D1 DELETE KEY", "Select key to delete:"),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data.startswith("delkey_"):
+        if not admin:
+            return
+        key = data.replace("delkey_", "")
+        keys = get_keys()
+        if key in keys:
+            del keys[key]
+            save_keys(keys)
+            await callback.answer(f"Deleted {key}!", show_alert=True)
+            try:
+                await callback.message.edit_text(
+                    text=box("\u2705 KEY DELETED", f"Key <code>{key}</code> deleted.") + footer(),
+                    reply_markup=admin_kb())
+            except Exception:
+                pass
+        else:
+            await callback.answer("Not found!", show_alert=True)
+        return
+
+    if data == "admin_editref":
+        if not admin:
+            return
+        cfg = load_config()
+        req_pts = cfg["required_points"]
+        ref_pts = cfg["referral_points"]
+        txt = box("\U0001F4DD EDIT REFERRALS",
+            f"<b>Required Points:</b> <code>{req_pts}</code>\n"
+            f"<b>Points per Referral:</b> <code>{ref_pts}</code>\n\n"
+            "Click button to edit:"
+        ) + footer()
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"\U0001F4B0 REQUIRED: {req_pts}", callback_data="editreq")],
+            [InlineKeyboardButton(text=f"\U0001F48E PER REFERRAL: {ref_pts}", callback_data="editref")],
+            [InlineKeyboardButton(text="\u25C0 BACK", callback_data="admin_panel")],
+        ])
+        try:
+            await callback.message.edit_text(text=txt, reply_markup=kb)
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "editreq":
+        if not admin:
+            return
+        _user_states[user_id] = "editreq"
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F4B0 SET REQUIRED POINTS", "Send new value:\n\nExample: <code>200</code>"),
+                reply_markup=back_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
+    if data == "editref":
+        if not admin:
+            return
+        _user_states[user_id] = "editref"
+        try:
+            await callback.message.edit_text(
+                text=box("\U0001F48E SET POINTS PER REFERRAL", "Send new value:\n\nExample: <code>100</code>"),
+                reply_markup=back_kb())
+        except Exception:
+            pass
+        await callback.answer()
+        return
+
     if data == "admin_addpts":
         if not admin:
             return
@@ -1257,7 +1370,7 @@ async def handle_callbacks(callback: CallbackQuery):
                 "Your points are finished!\n\n"
                 "Get referrals to earn more points.\n\n"
                 f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
-                f"<i>Each referral = {REFERRAL_POINTS} points</i>"
+                f"<i>Each referral = {get_referral_points()} points</i>"
             ) + footer(), reply_markup=referral_only_kb(user_id))
         await callback.answer()
         return
@@ -1584,6 +1697,34 @@ async def handle_text(message: Message):
             channels[ch_name] = ch_id
             save_channels(channels)
             await send_or_edit(message.chat.id, user_id, box("\u2705 CHANNEL ADDED", f"<b>{ch_name}</b>: <code>{ch_id}</code>") + footer(), reply_markup=admin_kb())
+            return
+
+        if state == "editreq":
+            _user_states.pop(user_id, None)
+            try:
+                val = int(text)
+                if val <= 0:
+                    raise ValueError
+                cfg = load_config()
+                cfg["required_points"] = val
+                save_config(cfg)
+                await send_or_edit(message.chat.id, user_id, box("\u2705 UPDATED", f"Required points: <code>{val}</code>") + footer(), reply_markup=admin_kb())
+            except ValueError:
+                await send_or_edit(message.chat.id, user_id, "Invalid number. Send a positive number.")
+            return
+
+        if state == "editref":
+            _user_states.pop(user_id, None)
+            try:
+                val = int(text)
+                if val <= 0:
+                    raise ValueError
+                cfg = load_config()
+                cfg["referral_points"] = val
+                save_config(cfg)
+                await send_or_edit(message.chat.id, user_id, box("\u2705 UPDATED", f"Points per referral: <code>{val}</code>") + footer(), reply_markup=admin_kb())
+            except ValueError:
+                await send_or_edit(message.chat.id, user_id, "Invalid number. Send a positive number.")
             return
 
         if state == "admin_addpts":
