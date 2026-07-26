@@ -233,6 +233,8 @@ def channels_join_kb():
 def referral_only_kb(user_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="\U0001F4DD MY REFERRALS", callback_data="check_referrals")],
+        [InlineKeyboardButton(text="\U0001F48E PREMIUM", callback_data="premium_info")],
+        [InlineKeyboardButton(text="\U0001F464 USER INFO", callback_data="user_info")],
     ])
 
 # ============================================
