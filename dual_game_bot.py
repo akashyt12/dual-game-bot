@@ -244,11 +244,40 @@ def deduct_point(user_id):
     user_data = get_user(user_id)
     if user_data.get("is_admin"):
         return 999999
+    if is_premium_active(user_data):
+        return 999999
     pts = user_data.get("points", 0)
     if pts > 0:
         user_data["points"] = pts - 1
         update_user(user_id, user_data)
     return user_data.get("points", 0)
+
+async def stop_and_show_result(chat_id, user_id, bot_state, platform):
+    bot_state["running"] = False
+    if user_id in _profit_messages:
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id, message_id=_profit_messages[user_id],
+                text=format_profit(bot_state, "STOPPED", platform) + footer(),
+                reply_markup=main_menu_kb()
+            )
+        except Exception:
+            pass
+    await asyncio.sleep(5)
+    if user_id in _profit_messages:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=_profit_messages[user_id])
+        except Exception:
+            pass
+        del _profit_messages[user_id]
+    try:
+        await bot.send_message(
+            chat_id,
+            box("\U0001F4B0 POINTS OVER", "No points left!\nGet referrals to earn more.") + footer(),
+            reply_markup=referral_only_kb(user_id)
+        )
+    except Exception:
+        pass
 
 def img(name):
     if not name:
@@ -1878,6 +1907,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
     engine.current_balance = start_balance
     engine.levels = make_levels(start_balance, total_bet, multiplier)
 
+    was_premium = is_premium_active(user_data) or admin
     bot_state = {
         "running": True, "start_balance": start_balance, "balance": start_balance,
         "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
@@ -1891,27 +1921,20 @@ async def run_betting_jai(user_id, chat_id, user_data):
         try:
             if not admin:
                 ud = get_user(user_id)
+                if was_premium and not is_premium_active(ud):
+                    await stop_and_show_result(chat_id, user_id, bot_state, "JAI CLUB")
+                    return
                 if points_finished(ud):
-                    bot_state["running"] = False
-                    try:
-                        await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left!\nGet referrals to continue.") + footer(),
-                            reply_markup=referral_only_kb(user_id))
-                    except Exception:
-                        pass
-                    break
+                    await stop_and_show_result(chat_id, user_id, bot_state, "JAI CLUB")
+                    return
 
                 elapsed = time.time() - bot_state["start_time"]
                 if elapsed >= 60:
                     bot_state["start_time"] = time.time()
                     remaining = deduct_point(user_id)
                     if remaining <= 0:
-                        bot_state["running"] = False
-                        try:
-                            await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points left!") + footer(),
-                                reply_markup=referral_only_kb(user_id))
-                        except Exception:
-                            pass
-                        break
+                        await stop_and_show_result(chat_id, user_id, bot_state, "JAI CLUB")
+                        return
 
             data = engine.fetch_draw_history(6)
             if not data:
@@ -1997,6 +2020,18 @@ async def run_betting_jai(user_id, chat_id, user_data):
                 text=format_profit(bot_state, "STOPPED", "JAI CLUB") + footer(), reply_markup=main_menu_kb())
         except Exception:
             pass
+        await asyncio.sleep(5)
+        if user_id in _profit_messages:
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=_profit_messages[user_id])
+            except Exception:
+                pass
+            del _profit_messages[user_id]
+        try:
+            await bot.send_message(chat_id, box("\U0001F4B0 SESSION ENDED", "Check profit above.\nGet referrals to earn more.") + footer(),
+                reply_markup=referral_only_kb(user_id))
+        except Exception:
+            pass
 
 # ============================================
 # RUN BETTING - 51GAME (Game51 login + JAI retry)
@@ -2046,6 +2081,7 @@ async def run_betting_51(user_id, chat_id, user_data):
     except Exception:
         pass
 
+    was_premium = is_premium_active(user_data) or admin
     bot_state = {
         "running": True, "start_balance": balance, "balance": balance,
         "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
@@ -2059,26 +2095,19 @@ async def run_betting_51(user_id, chat_id, user_data):
         try:
             if not admin:
                 ud = get_user(user_id)
+                if was_premium and not is_premium_active(ud):
+                    await stop_and_show_result(chat_id, user_id, bot_state, f"51GAME {game_name}")
+                    return
                 if points_finished(ud):
-                    bot_state["running"] = False
-                    try:
-                        await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points!") + footer(),
-                            reply_markup=referral_only_kb(user_id))
-                    except Exception:
-                        pass
-                    break
+                    await stop_and_show_result(chat_id, user_id, bot_state, f"51GAME {game_name}")
+                    return
                 elapsed = time.time() - bot_state["start_time"]
                 if elapsed >= 60:
                     bot_state["start_time"] = time.time()
                     remaining = deduct_point(user_id)
                     if remaining <= 0:
-                        bot_state["running"] = False
-                        try:
-                            await bot.send_message(chat_id, box("\U0001F4B0 POINTS OVER", "No points!") + footer(),
-                                reply_markup=referral_only_kb(user_id))
-                        except Exception:
-                            pass
-                        break
+                        await stop_and_show_result(chat_id, user_id, bot_state, f"51GAME {game_name}")
+                        return
 
             history = checker.fetch_draw_history(type_id, 6)
             if not history:
@@ -2171,6 +2200,18 @@ async def run_betting_51(user_id, chat_id, user_data):
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=_profit_messages[user_id],
                 text=format_profit(bot_state, "STOPPED", f"51GAME {game_name}") + footer(), reply_markup=main_menu_kb())
+        except Exception:
+            pass
+        await asyncio.sleep(5)
+        if user_id in _profit_messages:
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=_profit_messages[user_id])
+            except Exception:
+                pass
+            del _profit_messages[user_id]
+        try:
+            await bot.send_message(chat_id, box("\U0001F4B0 SESSION ENDED", "Check profit above.\nGet referrals to earn more.") + footer(),
+                reply_markup=referral_only_kb(user_id))
         except Exception:
             pass
 
