@@ -115,7 +115,7 @@ def generate_key(hours):
 def load_config():
     data = _load_json(CONFIG_FILE)
     return {
-        "required_points": data.get("required_points", REQUIRED_POINTS),
+        "required_points": data.get("required_points", 100),
         "referral_points": data.get("referral_points", 50),
     }
 
@@ -430,13 +430,13 @@ async def start_command(message: Message):
         pts = user_data.get("points", 0)
         refs = len(user_data.get("referrals", []))
         ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
-        await message.answer(box(f"\U0001F4B0 NEED {REQUIRED_POINTS} POINTS",
+        await message.answer(box(f"\U0001F4B0 NEED {get_required_points()} POINTS",
             f"Welcome <b>{name}</b>!\n\n"
-            f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n"
+            f"<b>Your Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n"
             f"<b>Referrals:</b> <code>{refs}</code>\n\n"
             f"Share your referral link:\n<code>{ref_link}</code>\n\n"
             f"<i>Each referral = {get_referral_points()} points</i>\n"
-            f"<i>Need {REQUIRED_POINTS} points to access bot</i>"
+            f"<i>Need {get_required_points()} points to access bot</i>"
         ) + footer(), reply_markup=referral_only_kb(user_id))
         return
 
@@ -500,9 +500,9 @@ async def check_joined_callback(callback: CallbackQuery):
         ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
         try:
             await callback.message.edit_text(
-                text=box(f"\U0001F4B0 NEED {REQUIRED_POINTS} POINTS",
+                text=box(f"\U0001F4B0 NEED {get_required_points()} POINTS",
                     f"Welcome <b>{safe_str(callback.from_user.first_name or 'User', 50)}</b>!\n\n"
-                    f"<b>Your Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
+                    f"<b>Your Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n\n"
                     f"Share referral link:\n<code>{ref_link}</code>\n\n"
                     f"<i>Each referral = {get_referral_points()} points</i>"
                 ) + footer(), reply_markup=referral_only_kb(user_id))
@@ -812,9 +812,9 @@ async def refer_command(message: Message):
     await message.answer(box("\U0001F4DD REFERRALS",
         f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
         f"<b>Referrals:</b> <code>{refs}</code>\n"
-        f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
+        f"<b>Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n\n"
         f"<i>Each referral = {get_referral_points()} points</i>\n"
-        f"<i>Need {REQUIRED_POINTS} points to use bot</i>"
+        f"<i>Need {get_required_points()} points to use bot</i>"
     ) + footer())
 
 @dp.message(Command("points"))
@@ -843,7 +843,7 @@ async def login_command(message: Message):
         return
     if not has_enough_points(user_data) and not user_data.get("is_admin"):
         await message.answer(box("\U0001F4B0 INSUFFICIENT POINTS",
-            f"You need {REQUIRED_POINTS} points.\nGet referrals!") + footer(),
+            f"You need {get_required_points()} points.\nGet referrals!") + footer(),
             reply_markup=referral_only_kb(user_id))
         return
     platform = user_data.get("platform", "jai")
@@ -884,7 +884,7 @@ async def handle_callbacks(callback: CallbackQuery):
         txt = box("\U0001F4DD REFERRALS",
             f"<b>Your Link:</b>\n<code>{ref_link}</code>\n\n"
             f"<b>Referrals:</b> <code>{refs}</code>\n"
-            f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
+            f"<b>Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n\n"
             f"<i>Share to earn {get_referral_points()} pts per referral</i>"
         ) + footer()
         try:
