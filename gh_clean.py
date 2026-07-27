@@ -167,11 +167,11 @@ async def start_command(message: Message):
     user_id = message.from_user.id
     name = escape(message.from_user.first_name or "User")
 
-    text = box("🎰 DUAL GAME AUTO BOT", (
-        f"👋 Welcome, <b>{name}</b>!\n\n"
+    text = box("🎰 𝐃𝐔𝐀𝐋 𝐆𝐀𝐌𝐄 𝐀𝐔𝐓𝐎 𝐁𝐄𝐓", (
+        f"👋 Wᴇʟᴄᴏᴍᴇ, <b>{name}</b>!\n\n"
         "Choose Your Platform:\n\n"
-        "🎰 <b>JAI CLUB</b> — WinGo 30S / 1M\n"
-        "🎯 <b>51GAME</b> — WinGo 30S / 1M / 3M / 5M\n\n"
+        "🎰 <b>𝗝𝗔𝗜 𝗖𝗟𝗨𝗕</b> — WinGo 30S / 1M\n"
+        "🎯 <b>51𝗚𝗔𝗠𝗘</b> — WinGo 30S / 1M / 3M / 5M\n\n"
         "━━━ <b>Features</b> ━━━\n"
         "🤖 Auto Prediction\n"
         "💰 Dual Bet System\n"
@@ -207,7 +207,7 @@ async def handle_platform(callback: CallbackQuery):
 
     if platform == "jai":
         image_file = "jaiclub.webp"
-        text = box("🎰 JAI CLUB SELECTED", (
+        text = box("🎰 𝗝𝗔𝗜 𝗖𝗟𝗨𝗕 SELECTED", (
             "<b>Platform:</b> JAI Club / AR Lottery\n"
             "<b>Games:</b> WinGo 30 Second, 1 Minute\n"
             "<b>API:</b> jaiclubapi.com\n"
@@ -219,7 +219,7 @@ async def handle_platform(callback: CallbackQuery):
         ))
     else:
         image_file = None
-        text = box("🎯 51GAME SELECTED", (
+        text = box("🎯 51𝗚𝗠𝗔𝗘 SELECTED", (
             "<b>Platform:</b> 51gamet.com\n"
             "<b>Games:</b> WinGo 30S, 1M, 3M, 5M\n"
             "<b>API:</b> api51gameapi.com\n\n"
@@ -257,15 +257,15 @@ async def login_command(message: Message):
     user_states[user_id] = "login"
 
     if platform == "jai":
-        title = "🔐 JAI CLUB LOGIN"
+        title = "🔐 𝗝𝗔𝗜 𝗖𝗟𝗨𝗕 𝗟𝗢𝗚𝗜𝗡"
         body = (
-            "Enter your <b>username</b> and <b>password</b>:\n\n"
+            "𝖤𝗇𝗍𝖾𝗋 𝗒𝗈𝗎𝗋 <b>𝗎𝗌𝖾𝗋𝗇𝖺𝗆𝖾</b> 𝖺𝗇𝖽 <b>𝗉𝖺𝗌𝗌𝗐𝗈𝗋𝖽</b>:\n\n"
             "<code>username\npassword</code>\n\n"
             "<i>Example:</i>\n"
             "<code>919876543210\nmypassword123</code>"
         )
     else:
-        title = "🔐 51GAME LOGIN"
+        title = "🔐 51𝗚𝗔𝗠𝗘 𝗟𝗢𝗚𝗜𝗡"
         body = (
             "Enter your <b>phone number</b> and <b>password</b>:\n\n"
             "<code>phone\npassword</code>\n\n"
@@ -321,9 +321,9 @@ async def handle_text(message: Message):
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
         await message.answer(text=box("💰 SET BALANCE", (
             f"<b>Platform:</b> {platform_name}\n\n"
-            "Enter your total balance:\n"
+            "𝗘𝗻𝘁𝗲𝗿 𝘆𝗼𝘂𝗿 𝘁𝗼𝘁𝗮𝗹 𝗯𝗮𝗹𝗮𝗻𝗰𝗲:\n"
             "<i>Examples:</i> <code>1000</code>, <code>5000</code>, <code>10000</code>\n\n"
-            "<i>Send the amount:</i>"
+            "<i>S𝘦𝗍 𝗍𝗁𝖾 𝖺𝗆𝗈𝗎𝗇𝗍:</i>"
         )))
         return
 
@@ -339,7 +339,7 @@ async def handle_text(message: Message):
                 text=box("✅ READY TO START", (
                     f"<b>Platform:</b> {platform_name}\n"
                     f"<b>Balance:</b> <code>₹{amount}</code>\n\n"
-                    "🚀 Bot is starting..."
+                    "🚀 Bᴏᴛ ɪs ʀᴜɴɴɪɴɢ..."
                 )),
                 reply_markup=main_menu_kb()
             )
@@ -405,7 +405,7 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "back_menu":
         await callback.message.edit_text(
-            text=box("📋 MAIN MENU", "Choose an option:"),
+            text=box("📋 𝗠𝗔𝗜𝗡 𝗠𝗘𝗡𝗨", "Cʜᴏᴏsᴇ ᴀɴ ᴏᴘᴛɪᴏɴ:"),
             reply_markup=main_menu_kb()
         )
         return
@@ -419,7 +419,7 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "start_bot":
         if not user_data.get("logged_in"):
-            await callback.answer("❌ Login first! Send /login", show_alert=True)
+            await callback.answer("❌ Lᴏɢɪɴ ғɪʀsᴛ! Send /login", show_alert=True)
             return
         if not user_data.get("start_balance"):
             user_states[user_id] = "set_amount"
@@ -432,7 +432,7 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer("🚀 Starting bot!", show_alert=False)
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
         await callback.message.edit_text(
-            text=box("✅ BOT STARTED", (
+            text=box("✅ 𝐁𝐎𝐓 𝐒𝐓𝐀𝐑𝐓𝐄𝐃", (
                 f"<b>Platform:</b> {platform_name}\n\n"
                 "📊 Live updates incoming!\n"
                 "🛑 Send <b>/stop</b> to stop"
@@ -450,7 +450,7 @@ async def handle_callbacks(callback: CallbackQuery):
         platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
 
         await callback.message.edit_text(
-            text=box("📊 BOT STATUS", (
+            text=box("📊 𝗕𝗢𝗧 𝗦𝗧𝗔𝗧𝗨𝗦", (
                 f"<b>Platform:</b> {platform_name}\n"
                 f"<b>Status:</b> {running}\n"
                 f"<b>Balance:</b> <code>₹{bot_data.get('balance', 0):.2f}</code>\n"
@@ -474,7 +474,7 @@ async def handle_callbacks(callback: CallbackQuery):
         target_status = "✅ REACHED!" if pct >= target else f"Target: {target}%"
 
         image = img("profit.jpg")
-        text = box("💰 LIVE PROFIT", (
+        text = box("💰 𝗟𝗜𝗩𝗘 𝗣𝗥𝗢𝗙𝗜𝗧", (
             f"{emoji} <b>Net Profit:</b> <code>{sign}₹{profit:.2f}</code>\n"
             f"📊 <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>\n"
             f"🎯 <b>Target:</b> <code>{target_status}</code>\n\n"
@@ -565,7 +565,7 @@ async def handle_callbacks(callback: CallbackQuery):
 
     if data == "settings":
         await callback.message.edit_text(
-            text=box("⚙ SETTINGS", "Adjust bot settings:"),
+            text=box("⚙ 𝗦𝗘𝗧𝗧𝗜𝗡𝗚𝗦", "Adjust bot settings:"),
             reply_markup=settings_kb(user_data)
         )
         return
@@ -584,7 +584,7 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "set_bet":
         user_states[user_id] = "set_bet"
         await callback.message.edit_text(
-            text=box("💰 SET BET AMOUNT", "Enter bet amount (min: <code>2</code>):"),
+            text=box("💰 𝗦𝗘𝗧 𝗕𝗘𝗧 𝗔𝗠𝗢𝗨𝗡𝗧", "Enter bet amount (min: <code>2</code>):"),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀ BACK", callback_data="back_menu")]])
         )
         return
@@ -592,7 +592,7 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "set_multiplier":
         user_states[user_id] = "set_mult"
         await callback.message.edit_text(
-            text=box("📈 SET MULTIPLIER", "Enter multiplier (min: <code>1.5</code>):"),
+            text=box("📈 𝗦𝗘𝗧 𝗠𝗨𝗟𝗧𝗜𝗣𝗟𝗜𝗘𝗥", "Enter multiplier (min: <code>1.5</code>):"),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀ BACK", callback_data="back_menu")]])
         )
         return
@@ -600,14 +600,14 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "set_target":
         user_states[user_id] = "set_target"
         await callback.message.edit_text(
-            text=box("🎯 SET PROFIT TARGET", "Enter target profit % (5 — 500):"),
+            text=box("🎯 𝗦𝗘𝗧 𝗣𝗥𝗢𝗙𝗜𝗧 𝗧𝗔𝗥𝗚𝗘𝗧", "Enter target profit % (5 — 500):"),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀ BACK", callback_data="back_menu")]])
         )
         return
 
     if data == "help":
         await callback.message.edit_text(
-            text=box("❓ HELP", (
+            text=box("❓ 𝗛𝗘𝗟𝗣", (
                 "<b>Commands:</b>\n"
                 "/start — Start bot & select platform\n"
                 "/login — Login with credentials\n"
@@ -961,11 +961,11 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
     target = bot_state.get("profit_target", 20)
 
     if status == "RUNNING":
-        s_emoji, s_text = "🟢", "Running"
+        s_emoji, s_text = "🟢", "𝗥𝘂𝗻𝗻𝗶𝗻𝗴"
     elif status == "WAITING":
-        s_emoji, s_text = "⏳", "Waiting"
+        s_emoji, s_text = "⏳", "𝗪𝗮𝗶𝘁𝗶𝗻𝗴"
     elif status == "STOPPED":
-        s_emoji, s_text = "🔴", "Stopped"
+        s_emoji, s_text = "🔴", "𝗦𝘁𝗼𝗽𝗽𝗲𝗱"
     elif "WIN" in status:
         s_emoji, s_text = "🏆", status
     elif "LOSS" in status:
@@ -977,7 +977,7 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
     sign = "+" if profit >= 0 else ""
     target_indicator = f"✅ {target}%" if pct >= target else f"⏳ {target}%"
 
-    return box(f"💰 {platform} PROFIT", (
+    return box(f"💰 {platform} 𝗣𝗥𝗢𝗙𝗜𝗧", (
         f"{s_emoji} <b>Status:</b> {s_text}\n\n"
         f"{p_emoji} <b>Net Profit:</b> <code>{sign}₹{profit:.2f}</code>\n"
         f"📊 <b>Profit %:</b> <code>{sign}{pct:.1f}%</code>\n"
