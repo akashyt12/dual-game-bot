@@ -428,6 +428,8 @@ async def start_command(message: Message):
     user_data["name"] = name
     user_data["username"] = username
     user_data["logged_in"] = False
+    user_data["login_user"] = ""
+    user_data["login_pass"] = ""
     update_user(user_id, user_data)
 
     channels = get_channels()
@@ -1488,6 +1490,19 @@ async def handle_callbacks(callback: CallbackQuery):
                 except Exception:
                     pass
                 await send_or_edit(callback.message.chat.id, user_id, box(title, body) + footer())
+            return
+        if not has_enough_points(user_data) and not user_data.get("is_admin"):
+            pts = user_data.get("points", 0)
+            refs = len(user_data.get("referrals", []))
+            ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
+            await send_or_edit(callback.message.chat.id, user_id,
+                box("\U0001F4B0 NEED POINTS",
+                    f"<b>Your Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n"
+                    f"<b>Referrals:</b> <code>{refs}</code>\n\n"
+                    f"Share your referral link:\n<code>{ref_link}</code>\n\n"
+                    f"<i>Each referral = {get_referral_points()} points</i>"
+                ) + footer(), reply_markup=referral_only_kb(user_id))
+            await callback.answer()
             return
         if not user_data.get("start_balance"):
             _user_states[user_id] = "set_amount"
