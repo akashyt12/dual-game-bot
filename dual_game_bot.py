@@ -36,9 +36,10 @@ RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8080"))
 
 PREMIUM_PLANS = {
-    "plan_7d": {"days": 7, "amount": 9900, "label": "7 Days", "emoji": "\u26A1", "price": 99},
-    "plan_30d": {"days": 30, "amount": 29900, "label": "30 Days", "emoji": "\uD83D\uDC51", "price": 299},
-    "plan_90d": {"days": 90, "amount": 49900, "label": "90 Days", "emoji": "\uD83D\uDCE0", "price": 499},
+    "plan_1d": {"days": 1, "amount": 19900, "label": "1 Day", "emoji": "\U0001F538", "price": 199},
+    "plan_3d": {"days": 3, "amount": 49900, "label": "3 Days", "emoji": "\U0001F538", "price": 499},
+    "plan_7d": {"days": 7, "amount": 99900, "label": "7 Days", "emoji": "\u26A1", "price": 999},
+    "plan_30d": {"days": 30, "amount": 199900, "label": "30 Days", "emoji": "\uD83D\uDC51", "price": 1999},
 }
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -385,7 +386,6 @@ def main_menu_kb():
          InlineKeyboardButton(text="\U0001F6D1 STOP", callback_data="stop_bot")],
         [InlineKeyboardButton(text="\U0001F504 SWITCH", callback_data="switch_platform"),
          InlineKeyboardButton(text="\U0001F4DD REFER", callback_data="check_referrals")],
-        [InlineKeyboardButton(text="\U0001F48E PREMIUM", callback_data="premium_info")],
         [InlineKeyboardButton(text="\U0001F464 USER INFO", callback_data="user_info")],
     ])
 
@@ -1044,9 +1044,10 @@ async def handle_callbacks(callback: CallbackQuery):
         else:
             txt = box("\U0001F48E PREMIUM MEMBERSHIP",
                 "Choose your plan:\n\n"
-                "\u26A1 <b>7 Days</b> \u2014 <code>\u20B999</code>\n"
-                "\uD83D\uDC51 <b>30 Days</b> \u2014 <code>\u20B9299</code>\n"
-                "\uD83D\uDCE0 <b>90 Days</b> \u2014 <code>\u20B9499</code>\n\n"
+                "\U0001F538 <b>1 Day</b> \u2014 <code>\u20B9199</code>\n"
+                "\U0001F538 <b>3 Days</b> \u2014 <code>\u20B9499</code>\n"
+                "\u26A1 <b>7 Days</b> \u2014 <code>\u20B9999</code>\n"
+                "\uD83D\uDC51 <b>30 Days</b> \u2014 <code>\u20B91999</code>\n\n"
                 "<i>\u26A1\uFE0F UPI QR \u2022 Instant activation</i>"
             ) + footer()
             prem_kb = premium_kb()
