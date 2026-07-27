@@ -1469,6 +1469,7 @@ async def handle_callbacks(callback: CallbackQuery):
         return
 
     if data == "start_bot":
+        user_data = get_user(user_id)
         if not user_data.get("logged_in"):
             await callback.answer("\U0001F511 Login first! /login", show_alert=True)
             _user_states[user_id] = "login"
