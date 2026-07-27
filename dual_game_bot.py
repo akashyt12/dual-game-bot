@@ -940,28 +940,6 @@ async def login_command(message: Message):
         body = "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>"
     await message.answer(text=box(title, body) + footer())
 
-@dp.message(Command("premium"))
-async def premium_command(message: Message):
-    user_id = message.from_user.id
-    user_data = get_user(user_id)
-    prem = user_data.get("premium", {})
-    if prem.get("active") and prem.get("end_time", 0) > time.time():
-        from datetime import datetime
-        end_dt = datetime.fromtimestamp(prem["end_time"]).strftime("%d %b %Y %I:%M %p")
-        await message.answer(box("\U0001F48E PREMIUM ACTIVE",
-            f"<b>Plan:</b> {prem.get('plan_id', 'N/A')}\n"
-            f"<b>Expires:</b> {end_dt}\n\n"
-            "Your premium access is active!"
-        ) + footer())
-        return
-    await message.answer(box("\U0001F48E PREMIUM MEMBERSHIP",
-        "Choose your plan:\n\n"
-        "\u26A1 <b>7 Days</b> \u2014 <code>\u20B999</code>\n"
-        "\uD83D\uDC51 <b>30 Days</b> \u2014 <code>\u20B9299</code>\n"
-        "\uD83D\uDCE0 <b>90 Days</b> \u2014 <code>\u20B9499</code>\n\n"
-        "<i>Pay via UPI QR \u2022 Instant activation</i>"
-    ) + footer(), reply_markup=premium_kb())
-
 @dp.message(Command("stop"))
 async def stop_command(message: Message):
     user_id = message.from_user.id
@@ -1060,27 +1038,22 @@ async def handle_callbacks(callback: CallbackQuery):
                 f"<b>Remaining:</b> {rem_str}\n\n"
                 "You have full access to bot features!"
             ) + footer()
+            prem_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")],
+            ])
         else:
-            admin_user = await bot.get_me()
-            admin_username = ADMIN_USERNAME
-            txt = box("\U0001F48E PREMIUM ACCESS",
-                "Get unlimited bot access with Premium!\n\n"
-                "<b>Pricing:</b>\n"
-                "\U0001F538 <b>1 Day</b> - \u20B9100\n"
-                "\U0001F538 <b>2 Days</b> - \u20B9199\n"
-                "\U0001F538 <b>3 Days</b> - \u20B9249\n"
-                "\U0001F538 <b>7 Days</b> - \u20B9599\n"
-                "\U0001F538 <b>1 Month</b> - \u20B9999\n\n"
-                f"DM @{admin_username} to purchase!"
+            txt = box("\U0001F48E PREMIUM MEMBERSHIP",
+                "Choose your plan:\n\n"
+                "\u26A1 <b>7 Days</b> \u2014 <code>\u20B999</code>\n"
+                "\uD83D\uDC51 <b>30 Days</b> \u2014 <code>\u20B9299</code>\n"
+                "\uD83D\uDCE0 <b>90 Days</b> \u2014 <code>\u20B9499</code>\n\n"
+                "<i>\u26A1\uFE0F UPI QR \u2022 Instant activation</i>"
             ) + footer()
+            prem_kb = premium_kb()
         try:
             await callback.message.delete()
         except Exception:
             pass
-        prem_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"\U0001F4AC DM @{ADMIN_USERNAME}", url=f"https://t.me/{ADMIN_USERNAME}")],
-            [InlineKeyboardButton(text="\u25C0 BACK", callback_data="back_menu")],
-        ])
         await send_or_edit(callback.message.chat.id, user_id, txt, reply_markup=prem_kb)
         await callback.answer()
         return
