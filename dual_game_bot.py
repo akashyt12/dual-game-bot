@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """PREDICTOR 2.0 - Dual Game Bot | Creator: Lord Senku | Play At Own Risk"""
 
-import os, sys, json, asyncio, logging, random, time, threading
+import os, sys, json, asyncio, logging, random, time, threading, hashlib, hmac, string as _str
 from datetime import datetime
 from pathlib import Path
 from html import escape
+import aiohttp
 
 sys.path.insert(0, str(Path(__file__).parent))
 from JAI_CLUB_BOT import AccountChecker as JAIChecker, AutoBetEngine, GAME_CODES, make_levels, predict_bs as jai_predict_bs, predict_color as jai_predict_color
@@ -26,7 +27,19 @@ USERS_FILE = BASE_DIR / "users.json"
 CHANNELS_FILE = BASE_DIR / "channels.json"
 KEYS_FILE = BASE_DIR / "premium_keys.json"
 CONFIG_FILE = BASE_DIR / "bot_config.json"
+ORDERS_FILE = BASE_DIR / "payment_orders.json"
 LOG_DIR = BASE_DIR / "logs"
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8080"))
+
+PREMIUM_PLANS = {
+    "plan_7d": {"days": 7, "amount": 9900, "label": "7 Days", "emoji": "\u26A1", "price": 99},
+    "plan_30d": {"days": 30, "amount": 29900, "label": "30 Days", "emoji": "\uD83D\uDC51", "price": 299},
+    "plan_90d": {"days": 90, "amount": 49900, "label": "90 Days", "emoji": "\uD83D\uDCE0", "price": 499},
+}
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 REFERRAL_POINTS = 50
@@ -44,6 +57,7 @@ _profit_messages = {}
 _rate_limits = {}
 _last_bot_msg = {}
 _pending_referrals = {}
+_pending_payments = {}
 
 # ============================================
 # STORAGE
@@ -111,6 +125,46 @@ def generate_key(hours):
     }
     save_keys(keys)
     return key
+
+def get_orders():
+    with _user_lock:
+        return _load_json(ORDERS_FILE)
+
+def save_orders(data):
+    with _user_lock:
+        _save_json(ORDERS_FILE, data)
+
+def create_order(user_id, chat_id, plan_id, qr_id, message_id):
+    orders = get_orders()
+    order_id = f"TG-{_str.ascii_uppercase[random.randint(0,25)]}{random.randint(100000,999999)}"
+    orders[order_id] = {
+        "telegram_user_id": user_id,
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "plan_id": plan_id,
+        "amount": PREMIUM_PLANS[plan_id]["amount"],
+        "qr_id": qr_id,
+        "status": "pending",
+        "created_at": time.time(),
+        "expires_at": time.time() + 900,
+        "payment_id": None
+    }
+    save_orders(orders)
+    return order_id
+
+def get_order_by_qr_id(qr_id):
+    orders = get_orders()
+    for oid, o in orders.items():
+        if o.get("qr_id") == qr_id:
+            return oid, o
+    return None, None
+
+def mark_order_paid(order_id, payment_id):
+    orders = get_orders()
+    if order_id in orders:
+        orders[order_id]["status"] = "paid"
+        orders[order_id]["payment_id"] = payment_id
+        save_orders(orders)
 
 def load_config():
     data = _load_json(CONFIG_FILE)
@@ -886,6 +940,28 @@ async def login_command(message: Message):
         body = "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>"
     await message.answer(text=box(title, body) + footer())
 
+@dp.message(Command("premium"))
+async def premium_command(message: Message):
+    user_id = message.from_user.id
+    user_data = get_user(user_id)
+    prem = user_data.get("premium", {})
+    if prem.get("active") and prem.get("end_time", 0) > time.time():
+        from datetime import datetime
+        end_dt = datetime.fromtimestamp(prem["end_time"]).strftime("%d %b %Y %I:%M %p")
+        await message.answer(box("\U0001F48E PREMIUM ACTIVE",
+            f"<b>Plan:</b> {prem.get('plan_id', 'N/A')}\n"
+            f"<b>Expires:</b> {end_dt}\n\n"
+            "Your premium access is active!"
+        ) + footer())
+        return
+    await message.answer(box("\U0001F48E PREMIUM MEMBERSHIP",
+        "Choose your plan:\n\n"
+        "\u26A1 <b>7 Days</b> \u2014 <code>\u20B999</code>\n"
+        "\uD83D\uDC51 <b>30 Days</b> \u2014 <code>\u20B9299</code>\n"
+        "\uD83D\uDCE0 <b>90 Days</b> \u2014 <code>\u20B9499</code>\n\n"
+        "<i>Pay via UPI QR \u2022 Instant activation</i>"
+    ) + footer(), reply_markup=premium_kb())
+
 @dp.message(Command("stop"))
 async def stop_command(message: Message):
     user_id = message.from_user.id
@@ -1467,6 +1543,94 @@ async def handle_callbacks(callback: CallbackQuery):
         except Exception:
             await callback.message.answer(text=text, reply_markup=main_menu_kb())
         await callback.answer(f"{p.upper()} selected!")
+        return
+
+    if data.startswith("buy_"):
+        plan_id = data.replace("buy_", "")
+        if plan_id not in PREMIUM_PLANS:
+            await callback.answer("Invalid plan!", show_alert=True)
+            return
+        plan = PREMIUM_PLANS[plan_id]
+        if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+            await callback.answer("Payment system not configured!", show_alert=True)
+            return
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        qr_data = await create_razorpay_qr(user_id, callback.message.chat.id, plan_id)
+        if not qr_data or "id" not in qr_data:
+            await send_or_edit(callback.message.chat.id, user_id,
+                box("\u274C FAILED", "Could not generate QR.\nTry again later.") + footer(),
+                reply_markup=premium_kb())
+            await callback.answer("QR generation failed!", show_alert=True)
+            return
+        qr_id = qr_data["id"]
+        qr_url = qr_data.get("image_url", "")
+        order_id = create_order(user_id, callback.message.chat.id, plan_id, qr_id, 0)
+        _pending_payments[user_id] = {"order_id": order_id, "qr_id": qr_id, "plan_id": plan_id, "amount": plan["amount"]}
+        caption = box("\U0001F4B3 PAYMENT QR GENERATED",
+            f"<b>Plan:</b> {plan['label']} Premium\n"
+            f"<b>Amount:</b> <code>\u20B9{plan['price']}</code>\n"
+            f"<b>Order:</b> <code>{order_id}</code>\n"
+            f"<b>Expires:</b> 15 Minutes\n\n"
+            "Scan QR below to pay exactly <code>\u20B9{}</code>\n\n"
+            "<i>\u26A0\uFE0F Same phone? Screenshot QR \u2192 Scan from Gallery</i>".format(plan['price'])
+        ) + footer()
+        try:
+            if qr_url:
+                msg = await bot.send_photo(chat_id=callback.message.chat.id, photo=qr_url,
+                    caption=caption, parse_mode="HTML", reply_markup=payment_kb(order_id))
+            else:
+                msg = await bot.send_message(chat_id=callback.message.chat.id, text=caption,
+                    reply_markup=payment_kb(order_id))
+            orders = get_orders()
+            if order_id in orders:
+                orders[order_id]["message_id"] = msg.message_id
+                save_orders(orders)
+        except Exception as e:
+            logger.error(f"QR send error: {e}")
+            await send_or_edit(callback.message.chat.id, user_id,
+                box("\u274C FAILED", "QR send failed.") + footer(), reply_markup=premium_kb())
+        await callback.answer()
+        return
+
+    if data.startswith("checkpay_"):
+        order_id = data.replace("checkpay_", "")
+        orders = get_orders()
+        order = orders.get(order_id)
+        if not order:
+            await callback.answer("Order not found!", show_alert=True)
+            return
+        if order["status"] == "paid":
+            await callback.answer("Already paid!", show_alert=True)
+            return
+        if time.time() > order.get("expires_at", 0):
+            await callback.answer("QR expired! Generate new one.", show_alert=True)
+            return
+        qr_id = order.get("qr_id")
+        qr_data = await fetch_razorpay_qr(qr_id)
+        if qr_data and qr_data.get("payments_count_received", 0) > 0:
+            await callback.answer("Payment detected! Processing...", show_alert=True)
+            return
+        await callback.answer("No payment yet. Please pay first.", show_alert=True)
+        return
+
+    if data.startswith("cancelpay_"):
+        order_id = data.replace("cancelpay_", "")
+        orders = get_orders()
+        if order_id in orders:
+            orders[order_id]["status"] = "cancelled"
+            save_orders(orders)
+        _pending_payments.pop(user_id, None)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await send_or_edit(callback.message.chat.id, user_id,
+            box("\u274C PAYMENT CANCELLED", "Payment cancelled.\nUse /premium to try again.") + footer(),
+            reply_markup=main_menu_kb())
+        await callback.answer("Cancelled!")
         return
 
     if data == "start_bot":
@@ -2288,15 +2452,145 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
         f"<i>{datetime.now().strftime('%H:%M:%S')}</i>"
     ))
 
+# ============================================
+# RAZORPAY PAYMENT SYSTEM
+# ============================================
+async def create_razorpay_qr(user_id, chat_id, plan_id):
+    plan = PREMIUM_PLANS[plan_id]
+    payload = {
+        "type": "upi_qr",
+        "name": f"TG-{user_id}",
+        "usage": "single_use",
+        "fixed_amount": True,
+        "payment_amount": plan["amount"],
+        "description": f"Predictor 2.0 Premium {plan['label']}",
+        "close_by": int(time.time()) + 900,
+        "notes": {
+            "telegram_user_id": str(user_id),
+            "telegram_chat_id": str(chat_id),
+            "plan_id": plan_id
+        }
+    }
+    auth = aiohttp.BasicAuth(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+    async with aiohttp.ClientSession() as session:
+        async with session.post("https://api.razorpay.com/v1/payments/qr_codes",
+            json=payload, auth=auth, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            if resp.status != 200:
+                return None
+            return await resp.json()
+
+async def fetch_razorpay_qr(qr_id):
+    auth = aiohttp.BasicAuth(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://api.razorpay.com/v1/payments/qr_codes/{qr_id}",
+            auth=auth, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+            if resp.status != 200:
+                return None
+            return await resp.json()
+
+def verify_razorpay_signature(raw_body, received_signature):
+    if not RAZORPAY_WEBHOOK_SECRET:
+        return True
+    expected = hmac.new(RAZORPAY_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, received_signature)
+
+def premium_kb():
+    buttons = []
+    for pid, p in PREMIUM_PLANS.items():
+        buttons.append([InlineKeyboardButton(text=f"{p['emoji']} {p['label']} \u2014 \u20B9{p['price']}", callback_data=f"buy_{pid}")])
+    buttons.append([InlineKeyboardButton(text="\u25C0 BACK", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def payment_kb(order_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="\U0001F504 Check Payment", callback_data=f"checkpay_{order_id}")],
+        [InlineKeyboardButton(text="\u274C Cancel Payment", callback_data=f"cancelpay_{order_id}")]
+    ])
+
 def hashlib_md5(data):
     import hashlib as hl
     return hl.md5(data).hexdigest()
+
+# ============================================
+# RAZORPAY WEBHOOK SERVER
+# ============================================
+async def handle_webhook(request):
+    try:
+        raw_body = await request.read()
+        signature = request.headers.get("X-Razorpay-Signature", "")
+        if not verify_razorpay_signature(raw_body, signature):
+            return aiohttp.web.Response(status=400, text="Invalid signature")
+        event = json.loads(raw_body)
+        if event.get("event") != "qr_code.credited":
+            return aiohttp.web.json_response({"ok": True, "ignored": True})
+        qr = event["payload"]["qr_code"]["entity"]
+        payment = event["payload"]["payment"]["entity"]
+        qr_id = qr["id"]
+        payment_id = payment["id"]
+        amount = int(payment["amount"])
+        payment_status = payment["status"]
+        order_id, order = get_order_by_qr_id(qr_id)
+        if not order:
+            return aiohttp.web.json_response({"ok": False, "error": "Unknown QR"}, status=400)
+        if amount != order["amount"]:
+            return aiohttp.web.json_response({"ok": False, "error": "Amount mismatch"}, status=400)
+        if payment_status != "captured":
+            return aiohttp.web.json_response({"ok": False, "error": "Not captured"}, status=400)
+        if order["status"] == "paid":
+            return aiohttp.web.json_response({"ok": True, "duplicate": True})
+        mark_order_paid(order_id, payment_id)
+        plan_id = order["plan_id"]
+        plan = PREMIUM_PLANS[plan_id]
+        telegram_user_id = order["telegram_user_id"]
+        user_data = get_user(telegram_user_id)
+        from datetime import datetime as dt
+        start_t = time.time()
+        end_t = start_t + (plan["days"] * 86400)
+        user_data["premium"] = {
+            "active": True, "start_time": start_t, "end_time": end_t,
+            "plan_id": plan_id, "source": "razorpay"
+        }
+        update_user(telegram_user_id, user_data)
+        _pending_payments.pop(telegram_user_id, None)
+        chat_id = order["chat_id"]
+        msg_id = order.get("message_id")
+        if msg_id:
+            try:
+                end_dt = dt.fromtimestamp(end_t).strftime("%d %b %Y %I:%M %p")
+                success_text = box("\u2705 PAYMENT SUCCESSFUL",
+                    f"<b>Amount:</b> <code>\u20B9{plan['price']}</code>\n"
+                    f"<b>Plan:</b> {plan['label']} Premium\n"
+                    f"<b>Payment ID:</b> <code>{payment_id}</code>\n"
+                    f"<b>Access:</b> Activated\n"
+                    f"<b>Valid Until:</b> {end_dt}"
+                ) + footer()
+                await bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=success_text,
+                    parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="\U0001F680 Open Premium", callback_data="main_menu")]
+                    ]))
+            except Exception as e:
+                logger.error(f"Edit success msg error: {e}")
+        return aiohttp.web.json_response({"ok": True})
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return aiohttp.web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def start_webhook_server():
+    app = aiohttp.web.Application()
+    app.router.add_post("/razorpay/qr-webhook", handle_webhook)
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", WEBHOOK_PORT)
+    await site.start()
+    logger.info(f"Webhook server started on port {WEBHOOK_PORT}")
 
 # ============================================
 # BOT START
 # ============================================
 async def main():
     print(f"{BOT_VERSION} - DUAL GAME BOT STARTED!")
+    if RAZORPAY_KEY_ID and RAZORPAY_WEBHOOK_SECRET:
+        await start_webhook_server()
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
