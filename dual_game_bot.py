@@ -1421,8 +1421,21 @@ async def handle_callbacks(callback: CallbackQuery):
             await callback.message.delete()
         except Exception:
             pass
-        await send_section(callback.message.chat.id, user_id, "main_menu.png",
-            box("\U0001F4CB MAIN MENU", "Choose an option:") + footer(), reply_markup=main_menu_kb())
+        user_data = get_user(user_id)
+        if not has_enough_points(user_data) and not user_data.get("is_admin"):
+            pts = user_data.get("points", 0)
+            refs = len(user_data.get("referrals", []))
+            ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
+            await send_or_edit(callback.message.chat.id, user_id,
+                box("\U0001F4CB MENU",
+                    f"<b>Your Points:</b> <code>{pts}</code> / <code>{get_required_points()}</code>\n"
+                    f"<b>Referrals:</b> <code>{refs}</code>\n\n"
+                    f"Share your referral link:\n<code>{ref_link}</code>\n\n"
+                    f"<i>Each referral = {get_referral_points()} points</i>"
+                ) + footer(), reply_markup=referral_only_kb(user_id))
+        else:
+            await send_section(callback.message.chat.id, user_id, "main_menu.png",
+                box("\U0001F4CB MAIN MENU", "Choose an option:") + footer(), reply_markup=main_menu_kb())
         await callback.answer()
         return
 
