@@ -1537,7 +1537,7 @@ async def handle_callbacks(callback: CallbackQuery):
             await callback.answer("\U0001F6D1 Already running!", show_alert=True)
             return
         await callback.answer("\U0001F680 Starting!")
-        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        pn = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
         try:
             await callback.message.delete()
         except Exception:
@@ -1550,7 +1550,7 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "status":
         bd = _active_bots.get(user_id, {})
         st = "Running" if bd.get("running") else "Stopped"
-        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        pn = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
         pts = user_data.get("points", 0)
         txt = box("\U0001F4CA STATUS",
             f"<b>Platform:</b> {pn}\n<b>Status:</b> {st}\n"
@@ -1871,7 +1871,7 @@ async def handle_text(message: Message):
         update_user(user_id, user_data)
         _user_states[user_id] = "set_amount"
         platform = user_data.get("platform", "jai")
-        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        pn = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
         await send_or_edit(message.chat.id, user_id, text=box("\U0001F4B0 SET BALANCE", f"<b>{pn}</b>\nEnter balance:\n<code>5000</code>") + footer())
         return
 
@@ -1885,7 +1885,7 @@ async def handle_text(message: Message):
         update_user(user_id, user_data)
         _user_states.pop(user_id, None)
         platform = user_data.get("platform", "jai")
-        pn = "JAI CLUB" if platform == "jai" else "51GAME"
+        pn = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
         await send_or_edit(message.chat.id, user_id, text=box("\u2705 READY", f"<b>{pn}</b> | Balance: {amount}\nStarting...") + footer(), reply_markup=main_menu_kb())
         user_data = get_user(user_id)
         asyncio.create_task(run_betting(user_id, message.chat.id, user_data))
