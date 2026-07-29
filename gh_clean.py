@@ -18,6 +18,7 @@ from html import escape
 sys.path.insert(0, str(Path(__file__).parent))
 from JAI_CLUB_BOT import AccountChecker as JAIChecker, AutoBetEngine, GAME_CODES, make_levels, predict_bs as jai_predict_bs, predict_color as jai_predict_color
 from game51_checker import Game51AccountChecker, predict_bs as game51_predict_bs, predict_color as game51_predict_color, result_to_bs, result_to_color
+from bdgwin_checker import BDGWinAccountChecker, predict_bs as bdgwin_predict_bs, predict_color as bdgwin_predict_color
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -88,8 +89,9 @@ def box(title, body):
 
 def platform_select_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎰 JAI CLUB", callback_data="platform_jai")],
-        [InlineKeyboardButton(text="🎯 51GAME", callback_data="platform_51")],
+        [InlineKeyboardButton(text="?? JAI CLUB", callback_data="platform_jai")],
+        [InlineKeyboardButton(text="?? 51GAME", callback_data="platform_51")],
+        [InlineKeyboardButton(text="?? BDGWIN", callback_data="platform_bdgwin")],
     ])
 
 def main_menu_kb():
@@ -129,14 +131,30 @@ def game_menu_kb_jai():
 def game_menu_kb_51():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="⚡ 30 SEC", callback_data="game51_30"),
-            InlineKeyboardButton(text="🔥 1 MIN", callback_data="game51_1m"),
+            InlineKeyboardButton(text="? 30 SEC", callback_data="game51_30"),
+            InlineKeyboardButton(text="?? 1 MIN", callback_data="game51_1m"),
         ],
         [
-            InlineKeyboardButton(text="💎 3 MIN", callback_data="game51_3m"),
-            InlineKeyboardButton(text="⭐ 5 MIN", callback_data="game51_5m"),
+            InlineKeyboardButton(text="?? 3 MIN", callback_data="game51_3m"),
+            InlineKeyboardButton(text="? 5 MIN", callback_data="game51_5m"),
         ],
-        [InlineKeyboardButton(text="◀ BACK", callback_data="back_menu")]
+        [InlineKeyboardButton(text="? BACK", callback_data="back_menu")]
+    ])
+
+def game_menu_kb_bdgwin():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="? 30 SEC", callback_data="bdgwin_30s"),
+            InlineKeyboardButton(text="?? 1 MIN", callback_data="bdgwin_1m"),
+        ],
+        [
+            InlineKeyboardButton(text="?? 3 MIN", callback_data="bdgwin_3m"),
+            InlineKeyboardButton(text="? 5 MIN", callback_data="bdgwin_5m"),
+        ],
+        [
+            InlineKeyboardButton(text="?? 10 MIN", callback_data="bdgwin_10m"),
+        ],
+        [InlineKeyboardButton(text="? BACK", callback_data="back_menu")]
     ])
 
 def settings_kb(user_data):
@@ -217,6 +235,18 @@ async def handle_platform(callback: CallbackQuery):
             "🔐 Type <b>/login</b> to authenticate\n"
             "💰 Then enter balance to start bot"
         ))
+    elif platform == "bdgwin":
+        image_file = None
+        text = box("🔵 𝗕𝗗𝗚𝗪𝗜𝗡 SELECTED", (
+            "<b>Platform:</b> bdgwin79.com\n"
+            "<b>Games:</b> WinGo 30S, 1M, 3M, 5M, 10M\n"
+            "<b>API:</b> api.bdg88zf.com\n"
+            "<b>Server:</b> ar-lottery01.com\n\n"
+            "📊 <b>Auto Prediction</b> + <b>Dual Bet System</b>\n"
+            "🎯 <b>Level Staking</b> + <b>Profit Target</b>\n\n"
+            "🔐 Type <b>/login</b> to authenticate\n"
+            "💰 Then enter balance to start bot"
+        ))
     else:
         image_file = None
         text = box("🎯 51𝗚𝗠𝗔𝗘 SELECTED", (
@@ -263,6 +293,15 @@ async def login_command(message: Message):
             "<code>username\npassword</code>\n\n"
             "<i>Example:</i>\n"
             "<code>919876543210\nmypassword123</code>"
+        )
+    elif platform == "bdgwin":
+        title = "🔐 𝗕𝗗𝗚𝗪𝗜𝗡 𝗟𝗢𝗚𝗜𝗡"
+        body = (
+            "Enter your <b>phone number</b> and <b>password</b>:\n\n"
+            "<code>phone\npassword</code>\n\n"
+            "<i>Example:</i>\n"
+            "<code>7441528680\nloveop902x</code>\n\n"
+            "<i>Note: 91 prefix is auto-added</i>"
         )
     else:
         title = "🔐 51𝗚𝗔𝗠𝗘 𝗟𝗢𝗚𝗜𝗡"
@@ -318,7 +357,7 @@ async def handle_text(message: Message):
         update_user(user_id, user_data)
         user_states[user_id] = "set_amount"
 
-        platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
+        platform_name = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
         await message.answer(text=box("💰 SET BALANCE", (
             f"<b>Platform:</b> {platform_name}\n\n"
             "𝗘𝗻𝘁𝗲𝗿 𝘆𝗼𝘂𝗿 𝘁𝗼𝘁𝗮𝗹 𝗯𝗮𝗹𝗮𝗻𝗰𝗲:\n"
@@ -334,7 +373,7 @@ async def handle_text(message: Message):
             update_user(user_id, user_data)
             user_states.pop(user_id, None)
 
-            platform_name = "JAI CLUB" if platform == "jai" else "51GAME"
+            platform_name = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
             await message.answer(
                 text=box("✅ READY TO START", (
                     f"<b>Platform:</b> {platform_name}\n"
@@ -504,6 +543,9 @@ async def handle_callbacks(callback: CallbackQuery):
         if platform == "jai":
             text = box("🎮 JAI CLUB GAMES", "Select game type:")
             kb = game_menu_kb_jai()
+        elif platform == "bdgwin":
+            text = box("🎮 BDGWIN GAMES", "Select game type:")
+            kb = game_menu_kb_bdgwin()
         else:
             text = box("🎮 51GAME GAMES", "Select game type:")
             kb = game_menu_kb_51()
@@ -534,6 +576,25 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer(f"✅ Game: WinGo {names.get(type_id, '30S')}", show_alert=False)
         await callback.message.edit_text(
             text=box("✅ GAME SELECTED", f"<b>Game:</b> WinGo {names.get(type_id, '30S')}"),
+            reply_markup=main_menu_kb()
+        )
+        return
+
+    if data.startswith("bdgwin_"):
+        bdgwin_game_map = {
+            "bdgwin_30s": "WinGo_30S",
+            "bdgwin_1m": "WinGo_1M",
+            "bdgwin_3m": "WinGo_3M",
+            "bdgwin_5m": "WinGo_5M",
+            "bdgwin_10m": "WinGo_10M"
+        }
+        game = bdgwin_game_map.get(data, "WinGo_30S")
+        user_data["bdgwin_game"] = game
+        update_user(user_id, user_data)
+        names = {"WinGo_30S": "30 SEC", "WinGo_1M": "1 MIN", "WinGo_3M": "3 MIN", "WinGo_5M": "5 MIN", "WinGo_10M": "10 MIN"}
+        await callback.answer(f"✅ Game: WinGo {names.get(game, '30S')}", show_alert=False)
+        await callback.message.edit_text(
+            text=box("✅ GAME SELECTED", f"<b>Game:</b> WinGo {names.get(game, '30S')}"),
             reply_markup=main_menu_kb()
         )
         return
@@ -929,6 +990,193 @@ async def run_betting_51(user_id, chat_id, user_data):
             pass
 
 # ============================================
+# RUN BETTING - BDGWIN
+# ============================================
+
+async def run_betting_bdgwin(user_id, chat_id, user_data):
+    username = user_data.get("login_user", "")
+    password = user_data.get("login_pass", "")
+    game = user_data.get("bdgwin_game", "WinGo_30S")
+    total_bet = user_data.get("total_bet", 2)
+    multiplier = user_data.get("multiplier", 2.0)
+    start_balance = user_data.get("start_balance", 1000)
+
+    game_names = {
+        "WinGo_30S": "30 SEC", "WinGo_1M": "1 MIN", "WinGo_3M": "3 MIN",
+        "WinGo_5M": "5 MIN", "WinGo_10M": "10 MIN"
+    }
+    game_name = game_names.get(game, "30S")
+
+    bot_state = {
+        "running": True, "wins": 0, "losses": 0, "break_even": 0,
+        "double_win": 0, "double_loss": 0, "level": 0,
+        "total_won": 0, "total_lost": 0, "profit": 0,
+        "start_balance": start_balance, "current_balance": start_balance,
+        "pending": None, "history": [], "game": game, "game_name": game_name
+    }
+
+    try:
+        checker = BDGWinAccountChecker(username, password)
+        if not checker.perform_login():
+            await message.answer(text=box("❌ LOGIN FAILED", f"Error: {checker.message}"))
+            return
+        
+        checker.fetch_user_info()
+        ud = checker.user_info
+        balance = None
+        for key in ("amount", "balance", "money", "coin", "points"):
+            if key in ud:
+                try:
+                    bal = float(ud[key])
+                    if bal > 0:
+                        balance = bal
+                        break
+                except:
+                    pass
+        
+        if balance is not None and balance > 0:
+            bot_state["start_balance"] = balance
+            bot_state["current_balance"] = balance
+            start_balance = balance
+
+        try:
+            checker.fetch_ar_token(game)
+        except:
+            pass
+
+        levels = make_levels(start_balance, total_bet, multiplier)
+        current_level = 0
+
+        profit_msg = await bot.send_message(
+            chat_id=chat_id,
+            text=format_profit(bot_state, "RUNNING", f"BDGWIN {game_name}"),
+            reply_markup=main_menu_kb()
+        )
+        profit_messages[user_id] = profit_msg.message_id
+
+        last_seen = None
+
+        while bot_state["running"] and user_id in active_bots:
+            try:
+                draw_urls = ["https://draw.ar-lottery06.com", checker.lottery_draw_base_url]
+                issues = []
+                for base in draw_urls:
+                    try:
+                        url = f"{base}/WinGo/{game}/GetHistoryIssuePage.json?pageSize=6&ts={int(time.time()*1000)}"
+                        resp = requests.get(url, timeout=6, verify=False, headers={"User-Agent": "Mozilla/5.0"})
+                        data = resp.json()
+                        if data.get("code") == 0:
+                            issues = data["data"]["list"]
+                            issues.sort(key=lambda x: x["issueNumber"], reverse=True)
+                            break
+                    except:
+                        continue
+
+                if not issues:
+                    await asyncio.sleep(1)
+                    continue
+
+                latest = str(issues[0]["issueNumber"])
+                if latest == last_seen:
+                    await asyncio.sleep(1)
+                    continue
+
+                last_seen = latest
+                nums = [int(x["number"]) for x in issues[:6]]
+                actual_num = nums[0]
+
+                if bot_state["pending"]:
+                    pending = bot_state["pending"]
+                    if str(pending["period"]) == str(latest):
+                        actual_bs = "BIG" if actual_num >= 5 else "SMALL"
+                        actual_color = "GREEN" if actual_num in GREEN_NUMS else "RED"
+                        bs_hit = pending["bs_pred"] == actual_bs
+                        color_hit = pending["color_pred"] == actual_color
+
+                        if bs_hit and color_hit:
+                            result = "DOUBLE WIN"
+                            bot_state["double_win"] += 1
+                            current_level = 0
+                            bot_state["wins"] += 1
+                        elif bs_hit or color_hit:
+                            result = "BREAK EVEN"
+                            bot_state["break_even"] += 1
+                        else:
+                            result = "DOUBLE LOSS"
+                            bot_state["double_loss"] += 1
+                            current_level += 1
+                            bot_state["losses"] += 1
+                            if current_level >= len(levels):
+                                bot_state["running"] = False
+
+                        bot_state["level"] = current_level
+                        bot_state["pending"] = None
+
+                        try:
+                            checker.fetch_user_info()
+                            ud2 = checker.user_info
+                            for key in ("amount", "balance", "money", "coin", "points"):
+                                if key in ud2:
+                                    try:
+                                        bot_state["current_balance"] = float(ud2[key])
+                                        break
+                                    except:
+                                        pass
+                            bot_state["profit"] = bot_state["current_balance"] - start_balance
+                        except:
+                            pass
+
+                        await update_profit_msg(user_id, chat_id, bot_state, result, f"BDGWIN {game_name}")
+                        await asyncio.sleep(1)
+                        continue
+
+                pattern_bs = [("B" if n >= 5 else "S") for n in reversed(nums)]
+                pattern_co = [("G" if n in GREEN_NUMS else "R") for n in reversed(nums)]
+                bs_pred, _ = bdgwin_predict_bs(pattern_bs)
+                co_pred, _ = bdgwin_predict_color(pattern_co)
+
+                if current_level < len(levels):
+                    lv = levels[current_level]
+                    bs_content = f"BigSmall_{bs_pred.capitalize()}"
+                    co_content = f"Color_{co_pred.capitalize()}"
+
+                    # Calculate next issue
+                    prefix = latest[:-3]
+                    num = int(latest[-3:]) + 1
+                    next_issue = f"{prefix}{num:03d}"
+
+                    try:
+                        checker.place_wingo_bet(next_issue, lv["bs_bet"], 1, bs_content, game)
+                        checker.place_wingo_bet(next_issue, lv["color_bet"], 1, co_content, game)
+                        
+                        bot_state["pending"] = {
+                            "period": next_issue, "bs_pred": bs_pred, "color_pred": co_pred,
+                            "bs_bet": lv["bs_bet"], "color_bet": lv["color_bet"]
+                        }
+                    except Exception as e:
+                        if "settled" not in str(e).lower():
+                            logger.error(f"BDGWin bet error: {e}")
+
+                await asyncio.sleep(1)
+
+            except Exception as e:
+                logger.error(f"BDGWin loop error: {e}")
+                await asyncio.sleep(3)
+
+    except Exception as e:
+        logger.error(f"BDGWin betting error: {e}")
+        await bot.send_message(chat_id=chat_id, text=box("❌ ERROR", str(e)))
+
+    if user_id in active_bots:
+        del active_bots[user_id]
+    if user_id in profit_messages:
+        try:
+            await bot.edit_message_text(chat_id=chat_id, message_id=profit_messages[user_id],
+                text=format_profit(bot_state, "STOPPED", f"BDGWIN {game_name}"), reply_markup=main_menu_kb())
+        except:
+            pass
+
+# ============================================
 # RUN BETTING - ROUTER
 # ============================================
 
@@ -936,6 +1184,8 @@ async def run_betting(user_id, chat_id, user_data):
     platform = user_data.get("platform", "jai")
     if platform == "51":
         await run_betting_51(user_id, chat_id, user_data)
+    elif platform == "bdgwin":
+        await run_betting_bdgwin(user_id, chat_id, user_data)
     else:
         await run_betting_jai(user_id, chat_id, user_data)
 
@@ -1001,3 +1251,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
