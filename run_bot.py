@@ -12,7 +12,10 @@ from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent / "bot_config.json"
 LOG_DIR = Path(__file__).parent / "logs"
-BOT_SCRIPT = Path(__file__).parent / "JAI_CLUB_BOT.py"
+BOT_SCRIPTS = {
+    "jai": Path(__file__).parent / "JAI_CLUB_BOT.py",
+    "bdgwin": Path(__file__).parent / "BDGWIN_BOT.py",
+}
 
 def load_config():
     if not CONFIG_FILE.exists():
