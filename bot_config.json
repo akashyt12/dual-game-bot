@@ -1,10 +1,18 @@
 {
-  "username": "",
-  "password": "",
-  "game": "1",
-  "total_bet": 2,
-  "multiplier": 2.0,
-  "confidence": 55,
-  "auto_restart": true,
-  "max_restarts": 10
+    "total_bet":  2,
+    "username":  "",
+    "max_restarts":  10,
+    "password":  "",
+    "auto_restart":  true,
+    "platforms":  [
+                      "jai",
+                      "51",
+                      "bdgwin"
+                  ],
+    "confidence":  55,
+    "multiplier":  2.0,
+    "bdgwin_password":  "",
+    "bdgwin_game":  "bdgwin_30s",
+    "game":  "1",
+    "bdgwin_username":  ""
 }
