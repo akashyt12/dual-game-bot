@@ -647,15 +647,20 @@ async def addchannel_command(message: Message):
         return
     raw = cmd_parts[1].strip()
     ch_id = parse_channel_input(raw)
+    channels = get_channels()
     if ch_id.startswith("@"):
         ch_name = ch_id.replace("@", "")
     elif ch_id.startswith("-100"):
         ch_name = f"Channel {ch_id}"
     elif ch_id.startswith("https://t.me/+"):
         ch_name = "Private Channel"
+        existing_names = list(channels.keys())
+        counter = 1
+        while ch_name in existing_names:
+            counter += 1
+            ch_name = f"Private Channel {counter}"
     else:
         ch_name = ch_id
-    channels = get_channels()
     channels[ch_name] = ch_id
     save_channels(channels)
     await message.answer(box("\u2705 CHANNEL ADDED",
@@ -1863,15 +1868,20 @@ async def handle_text(message: Message):
             _user_states.pop(user_id, None)
             raw = text.strip()
             ch_id = parse_channel_input(raw)
+            channels = get_channels()
             if ch_id.startswith("@"):
                 ch_name = ch_id.replace("@", "")
             elif ch_id.startswith("-100"):
                 ch_name = f"Channel {ch_id}"
             elif ch_id.startswith("https://t.me/+"):
                 ch_name = "Private Channel"
+                existing_names = list(channels.keys())
+                counter = 1
+                while ch_name in existing_names:
+                    counter += 1
+                    ch_name = f"Private Channel {counter}"
             else:
                 ch_name = ch_id
-            channels = get_channels()
             channels[ch_name] = ch_id
             save_channels(channels)
             await send_or_edit(message.chat.id, user_id, box("\u2705 CHANNEL ADDED", f"<b>{ch_name}</b>: <code>{ch_id}</code>") + footer(), reply_markup=admin_kb())
@@ -2592,10 +2602,11 @@ def hashlib_md5(data):
 async def bot_added_as_admin(event):
     try:
         chat = event.chat
-        chat_id = chat.id
-        chat_title = chat.title or chat.username or str(chat_id)
+        chat_id = str(chat.id)
+        chat_title = chat.title or chat.username or chat_id
         new_status = event.new_chat_member.status
         old_status = event.old_chat_member.status
+        logger.info(f"my_chat_member: chat={chat_title} ({chat_id}) old={old_status} new={new_status}")
         if new_status in ("administrator", "member") and old_status in ("left", "kicked", "restricted"):
             channels = get_channels()
             invite_key = None
@@ -2603,14 +2614,24 @@ async def bot_added_as_admin(event):
                 if ch_id.startswith("https://t.me/+") and name == chat_title:
                     invite_key = name
                     break
+            if not invite_key:
+                for name, ch_id in channels.items():
+                    if ch_id.startswith("https://t.me/+"):
+                        invite_key = name
+                        break
             if invite_key:
-                channels[str(chat_id)] = channels.pop(invite_key)
+                old_link = channels[invite_key]
+                channels[chat_title] = chat_id
+                if invite_key != chat_title:
+                    del channels[invite_key]
                 save_channels(channels)
-                logger.info(f"Auto-detected channel ID: {chat_title} = {chat_id}")
-            elif str(chat_id) not in channels.values():
-                channels[chat_title] = str(chat_id)
+                logger.info(f"Auto-resolved: {invite_key} ({old_link}) -> {chat_title} ({chat_id})")
+            elif chat_id not in channels.values():
+                channels[chat_title] = chat_id
                 save_channels(channels)
-                logger.info(f"Auto-added channel: {chat_title} = {chat_id}")
+                logger.info(f"Auto-added channel: {chat_title} ({chat_id})")
+            else:
+                logger.info(f"Channel already exists: {chat_title} ({chat_id})")
     except Exception as e:
         logger.error(f"my_chat_member error: {e}")
 
