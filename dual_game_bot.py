@@ -144,8 +144,7 @@ def has_joined_channels(user_id):
     channels = get_channels()
     if not channels:
         return False
-    all_checked = True
-    for ch_id in channels.values():
+    for ch_name, ch_id in channels.items():
         try:
             member = asyncio.get_event_loop().run_until_complete(
                 bot.get_chat_member(chat_id=ch_id, user_id=user_id)
@@ -153,9 +152,7 @@ def has_joined_channels(user_id):
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            all_checked = False
-    if not all_checked:
-        return False
+            return False
     return True
 
 async def check_joined_async(user_id):
@@ -164,13 +161,17 @@ async def check_joined_async(user_id):
     channels = get_channels()
     if not channels:
         return False
-    for ch_id in channels.values():
+    for ch_name, ch_id in channels.items():
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
-            if member.status in ("left", "kicked"):
+            status = member.status
+            if status in ("left", "kicked"):
+                logger.info(f"Channel check FAILED for user {user_id}: {ch_name} ({ch_id}) status={status}")
                 return False
-        except Exception:
-            pass
+            logger.info(f"Channel check OK for user {user_id}: {ch_name} ({ch_id}) status={status}")
+        except Exception as e:
+            logger.warning(f"Channel check ERROR for user {user_id}: {ch_name} ({ch_id}) error={e}")
+            return False
     return True
 
 def _is_admin_user(user_id):
@@ -532,7 +533,12 @@ async def check_joined_callback(callback: CallbackQuery):
 
     joined = await check_joined_async(user_id)
     if not joined:
-        await callback.answer("\u274C Not yet! Join ALL channels first, then click I HAVE JOINED.", show_alert=True)
+        channels = get_channels()
+        ch_list = "\n".join(f"  - {n}" for n in channels.keys())
+        await callback.answer(
+            f"NOT joined! Join ALL channels first:\n{ch_list}\n\nThen click I HAVE JOINED.",
+            show_alert=True
+        )
         return
 
     if user_id in _pending_referrals:
