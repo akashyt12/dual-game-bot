@@ -332,6 +332,67 @@ class BDGWinAccountChecker:
             raise RuntimeError(data.get("msg") or "WinGoBet failed")
         return data
 
+    def fetch_draw_history(self, game_code="WinGo_30S", count=6):
+        time.sleep(1)
+        try:
+            url = f"{self.lottery_draw_base_url}/{game_code}/GetHistoryIssuePage.json"
+            params = {"pageNum": 1, "pageSize": count}
+            resp = self.client.get(url, params=params, timeout=self.timeout, verify=self.verify_ssl)
+            data = resp.json()
+            issues = data.get("data", {}).get("list", []) if isinstance(data.get("data"), dict) else []
+            results = []
+            for item in issues:
+                results.append({
+                    "issueNumber": item.get("issueNumber", ""),
+                    "number": item.get("number", 0),
+                })
+            return results if results else None
+        except Exception as e:
+            logger.error("fetch_draw_history error: %s", e)
+            return None
+
+    def fetch_open_issue(self, game_code="WinGo_30S"):
+        time.sleep(1)
+        try:
+            url = f"{self.lottery_draw_base_url}/{game_code}/GetHistoryIssuePage.json"
+            params = {"pageNum": 1, "pageSize": 1}
+            resp = self.client.get(url, params=params, timeout=self.timeout, verify=self.verify_ssl)
+            data = resp.json()
+            issues = data.get("data", {}).get("list", []) if isinstance(data.get("data"), dict) else []
+            if issues:
+                latest_issue = issues[0].get("issueNumber", "")
+                if latest_issue:
+                    parts = str(latest_issue).split("-")
+                    if len(parts) >= 2:
+                        num = int(parts[-1])
+                        next_num = num + 1
+                        prefix = "-".join(parts[:-1])
+                        return f"{prefix}-{next_num:04d}"
+                    return str(latest_issue)
+            return None
+        except Exception as e:
+            logger.error("fetch_open_issue error: %s", e)
+            return None
+
+    def place_dual_bet(self, issue_number, game_code, bs_pred, color_pred, bs_amount, color_amount):
+        bs_content = f"BigSmall_{bs_pred.capitalize()}"
+        color_content = f"Color_{color_pred.capitalize()}"
+        results = {}
+        try:
+            bs_result = self.place_wingo_bet(issue_number, bs_amount, 1, bs_content, game_code)
+            results["bs"] = bs_result
+        except Exception as e:
+            logger.error("BS bet error: %s", e)
+            results["bs"] = {"error": str(e)}
+        time.sleep(0.5)
+        try:
+            color_result = self.place_wingo_bet(issue_number, color_amount, 1, color_content, game_code)
+            results["color"] = color_result
+        except Exception as e:
+            logger.error("Color bet error: %s", e)
+            results["color"] = {"error": str(e)}
+        return results
+
     def close(self):
         self.client.close()
 
