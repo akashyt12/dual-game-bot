@@ -145,6 +145,8 @@ def has_joined_channels(user_id):
     if not channels:
         return False
     for ch_name, ch_id in channels.items():
+        if ch_id.startswith("https://t.me/+"):
+            continue
         try:
             member = asyncio.get_event_loop().run_until_complete(
                 bot.get_chat_member(chat_id=ch_id, user_id=user_id)
@@ -162,6 +164,9 @@ async def check_joined_async(user_id):
     if not channels:
         return False
     for ch_name, ch_id in channels.items():
+        if ch_id.startswith("https://t.me/+"):
+            logger.info(f"Channel check SKIP (invite link, cannot verify): {ch_name}")
+            continue
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             status = member.status
