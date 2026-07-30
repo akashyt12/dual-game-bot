@@ -631,8 +631,9 @@ async def admin_command(message: Message):
 async def addchannel_command(message: Message):
     if not is_admin(message.from_user):
         return
-    parts = (message.text or "").split("\n")
-    if len(parts) < 2:
+    raw_text = (message.text or "").strip()
+    cmd_parts = raw_text.split(maxsplit=1)
+    if len(cmd_parts) < 2:
         await message.answer(
             box("\U0001F4E2 ADD CHANNEL", 
                 "Send channel link or username:\n\n"
@@ -644,20 +645,16 @@ async def addchannel_command(message: Message):
                 "<i>Bot must be admin in channel!</i>"
             ) + footer())
         return
-    raw = parts[1].strip()
+    raw = cmd_parts[1].strip()
     ch_id = parse_channel_input(raw)
-    if len(parts) >= 3:
-        ch_name = parts[1].strip()
-        ch_id = parse_channel_input(parts[2].strip())
+    if ch_id.startswith("@"):
+        ch_name = ch_id.replace("@", "")
+    elif ch_id.startswith("-100"):
+        ch_name = f"Channel {ch_id}"
+    elif ch_id.startswith("https://t.me/+"):
+        ch_name = "Private Channel"
     else:
-        if ch_id.startswith("@"):
-            ch_name = ch_id.replace("@", "")
-        elif ch_id.startswith("-100"):
-            ch_name = f"Channel {ch_id}"
-        elif ch_id.startswith("https://t.me/+"):
-            ch_name = "Private Channel"
-        else:
-            ch_name = ch_id
+        ch_name = ch_id
     channels = get_channels()
     channels[ch_name] = ch_id
     save_channels(channels)
@@ -1864,21 +1861,16 @@ async def handle_text(message: Message):
     if admin:
         if state == "admin_addch":
             _user_states.pop(user_id, None)
-            lines = text.split("\n")
-            raw = lines[0].strip()
+            raw = text.strip()
             ch_id = parse_channel_input(raw)
-            if len(lines) >= 2:
-                ch_name = lines[0].strip()
-                ch_id = parse_channel_input(lines[1].strip())
+            if ch_id.startswith("@"):
+                ch_name = ch_id.replace("@", "")
+            elif ch_id.startswith("-100"):
+                ch_name = f"Channel {ch_id}"
+            elif ch_id.startswith("https://t.me/+"):
+                ch_name = "Private Channel"
             else:
-                if ch_id.startswith("@"):
-                    ch_name = ch_id.replace("@", "")
-                elif ch_id.startswith("-100"):
-                    ch_name = f"Channel {ch_id}"
-                elif ch_id.startswith("https://t.me/+"):
-                    ch_name = "Private Channel"
-                else:
-                    ch_name = ch_id
+                ch_name = ch_id
             channels = get_channels()
             channels[ch_name] = ch_id
             save_channels(channels)
