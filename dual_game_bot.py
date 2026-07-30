@@ -165,17 +165,17 @@ async def check_joined_async(user_id):
         return False
     for ch_name, ch_id in channels.items():
         if ch_id.startswith("https://t.me/+"):
-            logger.info(f"Channel check SKIP (invite link, cannot verify): {ch_name}")
+            logger.info(f"Channel check SKIP (invite link): {ch_name}")
             continue
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             status = member.status
             if status in ("left", "kicked"):
-                logger.info(f"Channel check FAILED for user {user_id}: {ch_name} ({ch_id}) status={status}")
+                logger.info(f"Channel check FAILED: {ch_name} ({ch_id}) user={user_id} status={status}")
                 return False
-            logger.info(f"Channel check OK for user {user_id}: {ch_name} ({ch_id}) status={status}")
+            logger.info(f"Channel check OK: {ch_name} ({ch_id}) user={user_id} status={status}")
         except Exception as e:
-            logger.warning(f"Channel check ERROR for user {user_id}: {ch_name} ({ch_id}) error={e}")
+            logger.warning(f"Channel check ERROR: {ch_name} ({ch_id}) user={user_id} error={e}")
             return False
     return True
 
@@ -2586,12 +2586,41 @@ def hashlib_md5(data):
     return hl.md5(data).hexdigest()
 
 # ============================================
+# AUTO-DETECT CHANNEL ID (when bot added as admin)
+# ============================================
+@dp.my_chat_member()
+async def bot_added_as_admin(event):
+    try:
+        chat = event.chat
+        chat_id = chat.id
+        chat_title = chat.title or chat.username or str(chat_id)
+        new_status = event.new_chat_member.status
+        old_status = event.old_chat_member.status
+        if new_status in ("administrator", "member") and old_status in ("left", "kicked", "restricted"):
+            channels = get_channels()
+            invite_key = None
+            for name, ch_id in channels.items():
+                if ch_id.startswith("https://t.me/+") and name == chat_title:
+                    invite_key = name
+                    break
+            if invite_key:
+                channels[str(chat_id)] = channels.pop(invite_key)
+                save_channels(channels)
+                logger.info(f"Auto-detected channel ID: {chat_title} = {chat_id}")
+            elif str(chat_id) not in channels.values():
+                channels[chat_title] = str(chat_id)
+                save_channels(channels)
+                logger.info(f"Auto-added channel: {chat_title} = {chat_id}")
+    except Exception as e:
+        logger.error(f"my_chat_member error: {e}")
+
+# ============================================
 # BOT START
 # ============================================
 async def main():
     print(f"{BOT_VERSION} - DUAL GAME BOT STARTED!")
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "my_chat_member"])
 
 if __name__ == "__main__":
     asyncio.run(main())
