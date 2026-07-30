@@ -164,21 +164,34 @@ async def check_joined_async(user_id):
     channels = get_channels()
     if not channels:
         return False
-    all_checked = True
     for ch_id in channels.values():
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
             if member.status in ("left", "kicked"):
                 return False
         except Exception:
-            all_checked = False
-    if not all_checked:
-        return False
+            pass
     return True
 
 def _is_admin_user(user_id):
     user_data = get_user(user_id)
     return user_data.get("is_admin", False)
+
+def parse_channel_input(text):
+    text = text.strip()
+    if text.startswith("https://t.me/+") or text.startswith("t.me/+"):
+        return text
+    if text.startswith("https://t.me/"):
+        text = text.replace("https://t.me/", "")
+    elif text.startswith("t.me/"):
+        text = text.replace("t.me/", "")
+    if text.startswith("@"):
+        text = text
+    elif text.startswith("-100"):
+        text = text
+    elif "/" not in text and not text.startswith("@"):
+        text = "@" + text
+    return text
 
 def check_rate_limit(user_id, action, cooldown=1.0):
     key = f"{user_id}:{action}"
@@ -301,7 +314,14 @@ def channels_join_kb():
         return None
     buttons = []
     for name, ch_id in channels.items():
-        link = f"https://t.me/{ch_id.replace('@','')}" if ch_id.startswith("@") else f"https://t.me/c/{str(ch_id).replace('-100','')}"
+        if ch_id.startswith("https://t.me/"):
+            link = ch_id
+        elif ch_id.startswith("@"):
+            link = f"https://t.me/{ch_id.replace('@','')}"
+        elif ch_id.startswith("-100"):
+            link = f"https://t.me/c/{str(ch_id).replace('-100','')}"
+        else:
+            link = f"https://t.me/{ch_id}"
         buttons.append([InlineKeyboardButton(text=f"\U0001F4E2 Join {name}", url=link)])
     buttons.append([InlineKeyboardButton(text="\u2705 I Joined", callback_data="check_joined")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -604,12 +624,29 @@ async def addchannel_command(message: Message):
     if len(parts) < 2:
         await message.answer(
             box("\U0001F4E2 ADD CHANNEL", 
-                "Usage:\n<code>/addchannel\nChannel Name\n@channel_username</code>\n\n"
-                "Example:\n<code>/addchannel\nMy Channel\n@mychannel</code>"
+                "Send channel link or username:\n\n"
+                "<b>Supported formats:</b>\n"
+                "<code>/addchannel https://t.me/lordxStylo777</code>\n"
+                "<code>/addchannel @lordxStylo777</code>\n"
+                "<code>/addchannel lordxStylo777</code>\n"
+                "<code>/addchannel -1001234567890</code> (private)\n\n"
+                "<i>Bot must be admin in channel!</i>"
             ) + footer())
         return
-    ch_name = parts[1].strip()
-    ch_id = parts[2].strip() if len(parts) > 2 else parts[1].strip()
+    raw = parts[1].strip()
+    ch_id = parse_channel_input(raw)
+    if len(parts) >= 3:
+        ch_name = parts[1].strip()
+        ch_id = parse_channel_input(parts[2].strip())
+    else:
+        if ch_id.startswith("@"):
+            ch_name = ch_id.replace("@", "")
+        elif ch_id.startswith("-100"):
+            ch_name = f"Channel {ch_id}"
+        elif ch_id.startswith("https://t.me/+"):
+            ch_name = "Private Channel"
+        else:
+            ch_name = ch_id
     channels = get_channels()
     channels[ch_name] = ch_id
     save_channels(channels)
@@ -1056,13 +1093,18 @@ async def handle_callbacks(callback: CallbackQuery):
         try:
             await callback.message.edit_text(
                 text=box("\U0001F4E2 ADD CHANNEL",
-                    "Send channel info:\n\n<code>channel_name\n@channel_username</code>\n\n"
-                    "Example:\n<code>JaiClub\n@JaiClubOfficial</code>"
+                    "Send channel link or username:\n\n"
+                    "<b>Supported formats:</b>\n"
+                    "<code>https://t.me/lordxStylo777</code>\n"
+                    "<code>@lordxStylo777</code>\n"
+                    "<code>lordxStylo777</code>\n"
+                    "<code>-1001234567890</code> (private)\n\n"
+                    "<i>Bot must be admin in channel!</i>"
                 ) + footer(), reply_markup=back_kb())
         except Exception:
             await callback.message.answer(
                 text=box("\U0001F4E2 ADD CHANNEL",
-                    "Send:\n<code>name\n@username</code>"
+                    "Send channel link:\n<code>https://t.me/channel</code>"
                 ) + footer(), reply_markup=back_kb())
         await callback.answer()
         return
@@ -1812,11 +1854,20 @@ async def handle_text(message: Message):
         if state == "admin_addch":
             _user_states.pop(user_id, None)
             lines = text.split("\n")
-            if len(lines) < 2:
-                await send_or_edit(message.chat.id, user_id, "Format:\n<code>name\n@username</code>")
-                return
-            ch_name = lines[0].strip()
-            ch_id = lines[1].strip()
+            raw = lines[0].strip()
+            ch_id = parse_channel_input(raw)
+            if len(lines) >= 2:
+                ch_name = lines[0].strip()
+                ch_id = parse_channel_input(lines[1].strip())
+            else:
+                if ch_id.startswith("@"):
+                    ch_name = ch_id.replace("@", "")
+                elif ch_id.startswith("-100"):
+                    ch_name = f"Channel {ch_id}"
+                elif ch_id.startswith("https://t.me/+"):
+                    ch_name = "Private Channel"
+                else:
+                    ch_name = ch_id
             channels = get_channels()
             channels[ch_name] = ch_id
             save_channels(channels)
