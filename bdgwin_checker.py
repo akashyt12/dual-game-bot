@@ -335,7 +335,7 @@ class BDGWinAccountChecker:
     def fetch_draw_history(self, game_code="WinGo_30S", count=6):
         time.sleep(1)
         try:
-            url = f"{self.lottery_draw_base_url}/{game_code}/GetHistoryIssuePage.json"
+            url = f"{self.lottery_draw_base_url}/WinGo/{game_code}/GetHistoryIssuePage.json"
             params = {"pageNum": 1, "pageSize": count}
             resp = self.client.get(url, params=params, timeout=self.timeout, verify=self.verify_ssl)
             data = resp.json()
@@ -354,7 +354,7 @@ class BDGWinAccountChecker:
     def fetch_open_issue(self, game_code="WinGo_30S"):
         time.sleep(1)
         try:
-            url = f"{self.lottery_draw_base_url}/{game_code}/GetHistoryIssuePage.json"
+            url = f"{self.lottery_draw_base_url}/WinGo/{game_code}/GetHistoryIssuePage.json"
             params = {"pageNum": 1, "pageSize": 1}
             resp = self.client.get(url, params=params, timeout=self.timeout, verify=self.verify_ssl)
             data = resp.json()
