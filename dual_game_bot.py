@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PREDICTOR 2.0 - Dual Game Bot | Creator: Lord Senku | Play At Own Risk | v2.1"""
 
-import os, sys, json, asyncio, logging, random, time, threading
+import os, sys, json, asyncio, logging, random, time, secrets, hashlib
 from datetime import datetime
 from pathlib import Path
 from html import escape
@@ -17,12 +17,13 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, FSInputFile
 
-BOT_TOKEN = "8641246132:AAEVMdvP7W0ADNAop1Vn4qDBB3ycbq26qII"
-ADMIN_USERNAME = "lord_x_stylo"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8641246132:AAEVMdvP7W0ADNAop1Vn4qDBB3ycbq26qII")
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "lord_x_stylo")
 BOT_VERSION = "Predictor 2.0"
 CREATOR = "Lord Senku"
 IMAGES_DIR = Path(__file__).parent / "images"
-BASE_DIR = Path("/home/akash/mimo-test")
+BASE_DIR = Path(__file__).parent / "data"
+BASE_DIR.mkdir(parents=True, exist_ok=True)
 USERS_FILE = BASE_DIR / "users.json"
 CHANNELS_FILE = BASE_DIR / "channels.json"
 KEYS_FILE = BASE_DIR / "premium_keys.json"
@@ -38,16 +39,17 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-_user_lock = threading.Lock()
 _user_states = {}
 _active_bots = {}
 _profit_messages = {}
 _rate_limits = {}
 _last_bot_msg = {}
 _pending_referrals = {}
+_user_cache = {}
+_user_cache_time = {}
 
 # ============================================
-# STORAGE
+# STORAGE (with in-memory cache)
 # ============================================
 def _load_json(path):
     try:
@@ -59,47 +61,59 @@ def _load_json(path):
     return {}
 
 def _save_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     tmp.replace(path)
 
+# In-memory user cache to avoid repeated file reads
+_users_cache = {}
+_users_cache_time = 0
+
+def _get_users_cached():
+    global _users_cache, _users_cache_time
+    now = time.time()
+    if now - _users_cache_time < 2.0 and _users_cache:
+        return dict(_users_cache)
+    _users_cache = _load_json(USERS_FILE)
+    _users_cache_time = now
+    return dict(_users_cache)
+
+def _flush_users_cache(data):
+    global _users_cache, _users_cache_time
+    _users_cache = dict(data)
+    _users_cache_time = time.time()
+    _save_json(USERS_FILE, data)
+
 def get_user(user_id):
-    with _user_lock:
-        users = _load_json(USERS_FILE)
-        return dict(users.get(str(user_id), {}))
+    users = _get_users_cached()
+    return dict(users.get(str(user_id), {}))
 
 def update_user(user_id, data):
-    with _user_lock:
-        users = _load_json(USERS_FILE)
-        uid = str(user_id)
-        if uid in users:
-            users[uid].update(data)
-        else:
-            users[uid] = data
-        _save_json(USERS_FILE, users)
+    users = _get_users_cached()
+    uid = str(user_id)
+    if uid in users:
+        users[uid].update(data)
+    else:
+        users[uid] = data
+    _flush_users_cache(users)
 
 def get_channels():
-    with _user_lock:
-        return _load_json(CHANNELS_FILE)
+    return _load_json(CHANNELS_FILE)
 
 def save_channels(data):
-    with _user_lock:
-        _save_json(CHANNELS_FILE, data)
+    _save_json(CHANNELS_FILE, data)
 
 def get_keys():
-    with _user_lock:
-        return _load_json(KEYS_FILE)
+    return _load_json(KEYS_FILE)
 
 def save_keys(data):
-    with _user_lock:
-        _save_json(KEYS_FILE, data)
+    _save_json(KEYS_FILE, data)
 
 def generate_key(hours):
-    import hashlib
-    raw = f"{time.time()}{random.randint(100000,999999)}{hours}"
-    key = hashlib.md5(raw.encode()).hexdigest()[:12].upper()
-    key = f"{key[:4]}-{key[4:8]}-{key[8:]}"
+    raw = secrets.token_hex(8).upper()
+    key = f"{raw[:4]}-{raw[4:8]}-{raw[8:12]}"
     keys = get_keys()
     keys[key] = {
         "hours": hours,
@@ -138,34 +152,19 @@ def is_premium_active(user_data):
 def is_admin(user):
     return (user.username or "").lower() == ADMIN_USERNAME
 
-def has_joined_channels(user_id):
-    if _is_admin_user(user_id):
-        return True
-    channels = get_channels()
-    if not channels:
-        return False
-    for ch_name, ch_id in channels.items():
-        if ch_id.startswith("https://t.me/+"):
-            continue
-        try:
-            member = asyncio.get_event_loop().run_until_complete(
-                bot.get_chat_member(chat_id=ch_id, user_id=user_id)
-            )
-            if member.status in ("left", "kicked"):
-                return False
-        except Exception:
-            return False
-    return True
-
 async def check_joined_async(user_id):
     if _is_admin_user(user_id):
         return True
     channels = get_channels()
     if not channels:
         return False
+    user_data = get_user(user_id)
+    verified_invite = user_data.get("verified_invite_channels", [])
     for ch_name, ch_id in channels.items():
         if ch_id.startswith("https://t.me/+"):
-            logger.info(f"Channel check SKIP (invite link): {ch_name}")
+            # Invite links can't be checked via API — check if user clicked "I Joined"
+            if ch_name not in verified_invite:
+                return False
             continue
         try:
             member = await bot.get_chat_member(chat_id=ch_id, user_id=user_id)
@@ -206,6 +205,11 @@ def check_rate_limit(user_id, action, cooldown=1.0):
     if now - last < cooldown:
         return False
     _rate_limits[key] = now
+    # Cleanup old entries every 100 calls
+    if len(_rate_limits) > 500:
+        expired = [k for k, v in _rate_limits.items() if now - v > 60]
+        for k in expired:
+            del _rate_limits[k]
     return True
 
 async def send_or_edit(chat_id, user_id, text, reply_markup=None, parse_mode="HTML"):
@@ -538,6 +542,20 @@ async def check_joined_callback(callback: CallbackQuery):
 
     joined = await check_joined_async(user_id)
     if not joined:
+        # Mark invite link channels as verified when user clicks "I Joined"
+        channels = get_channels()
+        user_data = get_user(user_id)
+        verified_invite = user_data.get("verified_invite_channels", [])
+        invite_changed = False
+        for ch_name, ch_id in channels.items():
+            if ch_id.startswith("https://t.me/+") and ch_name not in verified_invite:
+                verified_invite.append(ch_name)
+                invite_changed = True
+        if invite_changed:
+            user_data["verified_invite_channels"] = verified_invite
+            update_user(user_id, user_data)
+            joined = await check_joined_async(user_id)
+    if not joined:
         channels = get_channels()
         ch_list = "\n".join(f"  - {n}" for n in channels.keys())
         await callback.answer(
@@ -614,7 +632,7 @@ async def admin_command(message: Message):
     if not is_admin(message.from_user):
         await message.answer(box("\U0001F6AB DENIED", "Admin only.") + footer())
         return
-    users = _load_json(USERS_FILE)
+    users = _get_users_cached()
     total_users = len(users)
     active = sum(1 for uid in _active_bots if _active_bots[uid].get("running"))
     total_pts = sum(u.get("points", 0) for u in users.values())
@@ -826,7 +844,7 @@ async def activate_command(message: Message):
 async def stats_command(message: Message):
     if not is_admin(message.from_user):
         return
-    users = _load_json(USERS_FILE)
+    users = _get_users_cached()
     total = len(users)
     active = sum(1 for uid in _active_bots if _active_bots[uid].get("running"))
     total_pts = sum(u.get("points", 0) for u in users.values())
@@ -994,7 +1012,7 @@ async def handle_callbacks(callback: CallbackQuery):
     # ---- USER INFO ----
     if data == "user_info":
         uid_str = str(user_id)
-        short_id = hashlib_md5(uid_str.encode())[:8].upper()
+        short_id = hashlib.md5(uid_str.encode()).hexdigest()[:8].upper()
         refs = len(user_data.get("referrals", []))
         pts = user_data.get("points", 0)
         uname = user_data.get("username", "N/A")
@@ -1080,7 +1098,7 @@ async def handle_callbacks(callback: CallbackQuery):
         if not admin:
             await callback.answer("Admin only!", show_alert=True)
             return
-        users = _load_json(USERS_FILE)
+        users = _get_users_cached()
         total_pts = sum(u.get("points", 0) for u in users.values())
         total_refs = sum(len(u.get("referrals", [])) for u in users.values())
         channels = get_channels()
@@ -1215,7 +1233,11 @@ async def handle_callbacks(callback: CallbackQuery):
     if data.startswith("genkey_"):
         if not admin:
             return
-        hours = int(data.replace("genkey_", ""))
+        try:
+            hours = int(data.replace("genkey_", ""))
+        except ValueError:
+            await callback.answer("Invalid duration!", show_alert=True)
+            return
         key = generate_key(hours)
         if hours >= 24:
             dur = f"{hours // 24} day(s)"
@@ -1438,7 +1460,7 @@ async def handle_callbacks(callback: CallbackQuery):
     if data == "admin_panel":
         if not admin:
             return
-        users = _load_json(USERS_FILE)
+        users = _get_users_cached()
         try:
             await callback.message.edit_text(
                 text=box(f"\U0001F451 ADMIN - {BOT_VERSION}",
@@ -1447,21 +1469,6 @@ async def handle_callbacks(callback: CallbackQuery):
                 ) + footer(), reply_markup=admin_kb())
         except Exception:
             pass
-        await callback.answer()
-        return
-
-    if data == "admin_play":
-        if not admin:
-            return
-        user_data["platform"] = "jai"
-        update_user(user_id, user_data)
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await send_section(callback.message.chat.id, user_id, "games.jpg",
-            box(f"\U0001F3B0 {BOT_VERSION}", "Select platform:") + footer(),
-            reply_markup=platform_select_kb())
         await callback.answer()
         return
 
@@ -1972,12 +1979,15 @@ async def handle_text(message: Message):
             await send_or_edit(message.chat.id, user_id, box("\u274C EMPTY", "Cannot be empty") + footer())
             return
         user_data["login_user"] = username
-        user_data["login_pass"] = password
         user_data["logged_in"] = True
         update_user(user_id, user_data)
         _user_states[user_id] = "set_amount"
         platform = user_data.get("platform", "jai")
         pn = "JAI CLUB" if platform == "jai" else ("BDGWIN" if platform == "bdgwin" else "51GAME")
+        # Store password only in session state, NOT in user JSON
+        if user_id not in _active_bots:
+            _active_bots[user_id] = {}
+        _active_bots[user_id]["login_pass"] = password
         await send_or_edit(message.chat.id, user_id, text=box("\U0001F4B0 SET BALANCE", f"<b>{pn}</b>\nEnter balance:\n<code>5000</code>") + footer())
         return
 
@@ -2038,7 +2048,7 @@ async def handle_text(message: Message):
 # ============================================
 async def run_betting_jai(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
-    password = user_data.get("login_pass", "")
+    password = _active_bots.get(user_id, {}).get("login_pass", "")
     game = user_data.get("game", "WinGo_30S")
     total_bet = user_data.get("total_bet", 2)
     multiplier = user_data.get("multiplier", 2.0)
@@ -2197,7 +2207,7 @@ async def run_betting_jai(user_id, chat_id, user_data):
 # ============================================
 async def run_betting_51(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
-    password = user_data.get("login_pass", "")
+    password = _active_bots.get(user_id, {}).get("login_pass", "")
     type_id = user_data.get("game51_type_id", 30)
     total_bet = user_data.get("total_bet", 2)
     start_balance = user_data.get("start_balance", 500)
@@ -2382,7 +2392,7 @@ async def run_betting_51(user_id, chat_id, user_data):
 # ============================================
 async def run_betting_bdgwin(user_id, chat_id, user_data):
     username = user_data.get("login_user", "")
-    password = user_data.get("login_pass", "")
+    password = _active_bots.get(user_id, {}).get("login_pass", "")
     game = user_data.get("game", "WinGo_30S")
     total_bet = user_data.get("total_bet", 2)
     start_balance = user_data.get("start_balance", 500)
@@ -2591,9 +2601,6 @@ def format_profit(bot_state, status="RUNNING", platform="JAI CLUB"):
         f"<i>{datetime.now().strftime('%H:%M:%S')}</i>"
     ))
 
-def hashlib_md5(data):
-    import hashlib as hl
-    return hl.md5(data).hexdigest()
 
 # ============================================
 # AUTO-DETECT CHANNEL ID (when bot added as admin)
