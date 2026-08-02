@@ -36,63 +36,24 @@ async def cmd_login(message: Message):
 async def cb_start_bot(callback: CallbackQuery):
     user_id = callback.from_user.id
     user = await get_user(user_id)
-    if not user.get("logged_in"):
-        _user_states[user_id] = "login"
-        platform = user.get("platform", "jai")
-        titles = {"jai": "🔑 JAI CLUB LOGIN", "bdgwin": "💰 BDGWIN LOGIN", "51": "🔑 51GAME LOGIN"}
-        bodies = {
-            "jai": "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>",
-            "bdgwin": "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>",
-            "51": "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>",
-        }
-        try:
-            await callback.message.edit_text(
-                box(titles.get(platform, "LOGIN"), bodies.get(platform, "")) + footer())
-        except Exception:
-            from bot.bot_instance import bot
-            await bot.send_message(callback.message.chat.id,
-                box(titles.get(platform, "LOGIN"), bodies.get(platform, "")) + footer())
-        await callback.answer("🔑 Login first!", show_alert=False)
-        return
 
-    pts = user.get("points", 0)
-    if pts < REQUIRED_POINTS:
-        from bot.keyboards import referral_only_kb
-        ref_link = f"t.me/predictor20lord_bot?start=REF_{user_id}"
+    # Always force fresh login
+    _user_states[user_id] = "login"
+    platform = user.get("platform", "jai")
+    titles = {"jai": "🔑 JAI CLUB LOGIN", "bdgwin": "💰 BDGWIN LOGIN", "51": "🔑 51GAME LOGIN"}
+    bodies = {
+        "jai": "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>",
+        "bdgwin": "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>",
+        "51": "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>",
+    }
+    try:
+        await callback.message.edit_text(
+            box(titles.get(platform, "LOGIN"), bodies.get(platform, "")) + footer())
+    except Exception:
         from bot.bot_instance import bot
         await bot.send_message(callback.message.chat.id,
-            box("💰 NEED POINTS",
-                f"<b>Points:</b> <code>{pts}</code> / <code>{REQUIRED_POINTS}</code>\n\n"
-                f"Referral link:\n<code>{ref_link}</code>"),
-            reply_markup=referral_only_kb())
-        await callback.answer()
-        return
-
-    if not user.get("start_balance"):
-        _user_states[user_id] = "set_amount"
-        try:
-            await callback.message.edit_text(
-                box("💰 SET BALANCE", "Enter total balance:\n<code>5000</code>") + footer())
-        except Exception:
-            from bot.bot_instance import bot
-            await bot.send_message(callback.message.chat.id,
-                box("💰 SET BALANCE", "Enter total balance:\n<code>5000</code>") + footer())
-        await callback.answer()
-        return
-
-    from bot.handlers.dashboard import start_betting
-    await callback.answer("🚀 Starting!")
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    from bot.bot_instance import bot
-    user = await get_user(user_id)
-    await bot.send_message(callback.message.chat.id,
-        box("✅ STARTED", "Bot running! /stop to stop.") + footer(),
-        reply_markup=main_menu_kb())
-    import asyncio
-    asyncio.create_task(start_betting(user_id, callback.message.chat.id, user))
+            box(titles.get(platform, "LOGIN"), bodies.get(platform, "")) + footer())
+    await callback.answer("🔑 Fresh login required!", show_alert=False)
 
 
 async def handle_login_state(message: Message, user_id: int, text: str):
@@ -105,12 +66,14 @@ async def handle_login_state(message: Message, user_id: int, text: str):
     if not username or not password:
         await message.answer(box("❌ EMPTY", "Cannot be empty") + footer())
         return
+
+    # Save to RAM only - NEVER to DB
     from bot.bot_instance import _active_bots
     if user_id not in _active_bots:
         _active_bots[user_id] = {}
     _active_bots[user_id]["login_user"] = username
     _active_bots[user_id]["login_pass"] = password
-    await update_user(user_id, {"logged_in": 1, "login_user": username})
+
     _user_states[user_id] = "set_amount"
     user = await get_user(user_id)
     platform = user.get("platform", "jai")
@@ -124,7 +87,13 @@ async def handle_set_amount(message: Message, user_id: int, text: str):
     except ValueError:
         await message.answer(box("❌ INVALID", "Enter a number. Min 100") + footer())
         return
-    await update_user(user_id, {"start_balance": amount})
+
+    # Save balance to RAM only - NOT to DB
+    from bot.bot_instance import _active_bots
+    if user_id not in _active_bots:
+        _active_bots[user_id] = {}
+    _active_bots[user_id]["start_balance"] = amount
+
     _user_states.pop(user_id, None)
     user = await get_user(user_id)
     platform = user.get("platform", "jai")
@@ -133,7 +102,6 @@ async def handle_set_amount(message: Message, user_id: int, text: str):
                          reply_markup=main_menu_kb())
     import asyncio
     from bot.handlers.dashboard import start_betting
-    user = await get_user(user_id)
     asyncio.create_task(start_betting(user_id, message.chat.id, user))
 
 

@@ -52,6 +52,13 @@ async def cmd_start(message: Message):
 
     await upsert_user(user_id, {"name": name, "username": username})
 
+    # Fresh login: always clear old login state
+    await update_user(user_id, {
+        "logged_in": 0,
+        "login_user": "",
+        "start_balance": 0,
+    })
+
     if ref_code and ref_code != user_id and not await was_referred(user_id):
         from bot.handlers.referral import pending_referrals
         pending_referrals[user_id] = ref_code
@@ -170,6 +177,17 @@ async def cb_check_joined(callback: CallbackQuery):
         box(f"✅ VERIFIED!", f"Welcome <b>{name}</b>!\n\nAll channels joined!") + footer(),
         reply_markup=main_menu_kb())
     await callback.answer("✅ Verified!", show_alert=False)
+
+
+@router.message(Command("stop"))
+async def cmd_stop(message: Message):
+    from bot.handlers.dashboard import _active_bots
+    user_id = message.from_user.id
+    if user_id in _active_bots:
+        _active_bots[user_id]["running"] = False
+        await message.answer(box("🛑 STOPPING", "Bot stopping..."))
+    else:
+        await message.answer(box("ℹ NOT RUNNING", "No active session.\nUse /start to begin."))
 
 
 @router.callback_query(F.data == "back_menu")

@@ -54,16 +54,31 @@ async def cb_stop_bot(callback: CallbackQuery):
 @router.callback_query(F.data == "confirm_stop")
 async def cb_confirm_stop(callback: CallbackQuery):
     user_id = callback.from_user.id
+
+    # Stop the bot loop
     if user_id in _active_bots:
         _active_bots[user_id]["running"] = False
+
+    # Wipe ALL login data from RAM
+    _active_bots.pop(user_id, None)
+    _profit_messages.pop(user_id, None)
+
+    # Wipe ALL login data from DB - fresh start next time
+    await update_user(user_id, {
+        "logged_in": 0,
+        "login_user": "",
+        "start_balance": 0,
+    })
+
     try:
         await callback.message.delete()
     except Exception:
         pass
     from bot.bot_instance import bot
     await bot.send_message(callback.message.chat.id,
-        box("🛑 STOPPED", "Use /start to restart.") + footer(), reply_markup=main_menu_kb())
-    await callback.answer("🛑 Stopped!")
+        box("🛑 STOPPED", "All data cleared.\nUse /start for fresh login.") + footer(),
+        reply_markup=main_menu_kb())
+    await callback.answer("🛑 Stopped! All data cleared.")
 
 
 @router.callback_query(F.data == "cancel_stop")
@@ -185,15 +200,24 @@ async def cb_premium(callback: CallbackQuery):
 
 
 async def start_betting(user_id, chat_id, user_data):
-    platform = user_data.get("platform", "jai")
-    username = user_data.get("login_user", "")
     from bot.bot_instance import _active_bots as ab, bot
-    password = ab.get(user_id, {}).get("login_pass", "")
+
+    # Read ALL from RAM - never from DB
+    session = ab.get(user_id, {})
+    platform = user_data.get("platform", "jai")
+    username = session.get("login_user", "")
+    password = session.get("login_pass", "")
+    start_balance = session.get("start_balance", 0)
+
     game = user_data.get("game", "WinGo_30S")
     total_bet = user_data.get("total_bet", 2)
     multiplier = user_data.get("multiplier", 2.0)
-    start_balance = user_data.get("start_balance", 500)
     profit_target = user_data.get("profit_target", 20)
+
+    if not username or not password or not start_balance:
+        await bot.send_message(chat_id,
+            box("❌ NO LOGIN DATA", "Use /start to login fresh.") + footer())
+        return
 
     pn = {"jai": "JAI CLUB", "bdgwin": "BDGWIN", "51": "51GAME"}.get(platform, "JAI CLUB")
 
@@ -234,6 +258,11 @@ async def start_betting(user_id, chat_id, user_data):
         await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
             text=box("❌ LOGIN FAILED", str(e)[:100]) + footer())
         return
+
+    # Wipe login creds from RAM after successful login
+    if user_id in ab:
+        ab[user_id].pop("login_user", None)
+        ab[user_id].pop("login_pass", None)
 
     bot_state = {
         "running": True, "start_balance": start_balance, "balance": start_balance,
@@ -369,6 +398,7 @@ async def start_betting(user_id, chat_id, user_data):
             logging.error(f"Betting error: {e}")
             await asyncio.sleep(3)
 
+    # Bot loop ended - wipe everything
     if user_id in _profit_messages:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=_profit_messages[user_id],
@@ -382,10 +412,20 @@ async def start_betting(user_id, chat_id, user_data):
             except Exception:
                 pass
             _profit_messages.pop(user_id, None)
+
+    # Wipe ALL from RAM
     _active_bots.pop(user_id, None)
+
+    # Wipe ALL from DB
+    await update_user(user_id, {
+        "logged_in": 0,
+        "login_user": "",
+        "start_balance": 0,
+    })
+
     try:
         await bot.send_message(chat_id,
-            box("💰 SESSION ENDED", "Get referrals to earn more.") + footer(),
+            box("💰 SESSION ENDED", "All data cleared.\nUse /start for fresh login.") + footer(),
             reply_markup=referral_only_kb())
     except Exception:
         pass
