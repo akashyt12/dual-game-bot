@@ -56,6 +56,7 @@ async def cb_start_bot(callback: CallbackQuery):
     await callback.answer("🔑 Fresh login required!", show_alert=False)
 
 
+# ── STEP 1: Login ──
 async def handle_login_state(message: Message, user_id: int, text: str):
     lines = text.split("\n")
     if len(lines) < 2:
@@ -67,20 +68,22 @@ async def handle_login_state(message: Message, user_id: int, text: str):
         await message.answer(box("❌ EMPTY", "Cannot be empty") + footer())
         return
 
-    # Save to RAM only - NEVER to DB
     from bot.bot_instance import _active_bots
     if user_id not in _active_bots:
         _active_bots[user_id] = {}
     _active_bots[user_id]["login_user"] = username
     _active_bots[user_id]["login_pass"] = password
 
+    # Step 2: Ask balance
     _user_states[user_id] = "set_amount"
     user = await get_user(user_id)
     platform = user.get("platform", "jai")
     pn = {"jai": "JAI CLUB", "bdgwin": "BDGWIN", "51": "51GAME"}.get(platform, "JAI CLUB")
-    await message.answer(box("💰 SET BALANCE", f"<b>{pn}</b>\nEnter balance:\n<code>5000</code>") + footer())
+    await message.answer(box("💰 STEP 2 - BALANCE",
+        f"<b>{pn}</b>\n\nEnter your total balance:\n<code>5000</code>") + footer())
 
 
+# ── STEP 2: Balance ──
 async def handle_set_amount(message: Message, user_id: int, text: str):
     try:
         amount = max(100, int(text))
@@ -88,22 +91,57 @@ async def handle_set_amount(message: Message, user_id: int, text: str):
         await message.answer(box("❌ INVALID", "Enter a number. Min 100") + footer())
         return
 
-    # Save balance to RAM only - NOT to DB
     from bot.bot_instance import _active_bots
     if user_id not in _active_bots:
         _active_bots[user_id] = {}
     _active_bots[user_id]["start_balance"] = amount
 
+    # Step 3: Ask target amount
+    _user_states[user_id] = "set_target_amount"
+    await message.answer(box("🎯 STEP 3 - TARGET",
+        f"<b>Balance:</b> {amount}\n\n"
+        f"Enter target profit in ₹:\n"
+        f"<code>20</code> or <code>50</code> or <code>100</code>\n\n"
+        f"<i>Bot stops when profit reaches this amount</i>") + footer())
+
+
+# ── STEP 3: Target Amount ──
+async def handle_set_target_amount(message: Message, user_id: int, text: str):
+    try:
+        target = max(1, float(text))
+    except ValueError:
+        await message.answer(box("❌ INVALID", "Enter a number. Min 1") + footer())
+        return
+
+    from bot.bot_instance import _active_bots
+    if user_id not in _active_bots:
+        _active_bots[user_id] = {}
+    _active_bots[user_id]["target_amount"] = target
+
+    # Done - start bot
     _user_states.pop(user_id, None)
     user = await get_user(user_id)
     platform = user.get("platform", "jai")
     pn = {"jai": "JAI CLUB", "bdgwin": "BDGWIN", "51": "51GAME"}.get(platform, "JAI CLUB")
-    await message.answer(box("✅ READY", f"<b>{pn}</b> | Balance: {amount}\nStarting...") + footer(),
-                         reply_markup=main_menu_kb())
+    balance = _active_bots[user_id].get("start_balance", 0)
+
+    await message.answer(box("✅ READY!",
+        f"<b>{pn}</b>\n\n"
+        f"💰 Balance: <code>{balance}</code>\n"
+        f"🎯 Target: <code>₹{target}</code>\n\n"
+        f"<b>3-Fund System:</b>\n"
+        f"🟢 F1 LOW (0% risk)\n"
+        f"🟡 F2 MED (10% risk)\n"
+        f"🔴 F3 HIGH (50% risk)\n\n"
+        f"Starting...") + footer(),
+        reply_markup=main_menu_kb())
+
     import asyncio
     from bot.handlers.dashboard import start_betting
     asyncio.create_task(start_betting(user_id, message.chat.id, user))
 
+
+# ── Settings handlers ──
 
 async def handle_set_bet(message: Message, user_id: int, text: str):
     try:
@@ -174,6 +212,7 @@ async def handle_set_stoploss(message: Message, user_id: int, text: str):
 STATE_HANDLERS = {
     "login": handle_login_state,
     "set_amount": handle_set_amount,
+    "set_target_amount": handle_set_target_amount,
     "set_bet": handle_set_bet,
     "set_mult": handle_set_mult,
     "set_target": handle_set_target,

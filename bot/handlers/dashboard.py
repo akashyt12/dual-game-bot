@@ -11,6 +11,27 @@ router = Router()
 _active_bots = {}
 _profit_messages = {}
 
+# ═══════════════════════════════════════════════════════════════
+#  3-FUND LEVEL SYSTEM
+#  Fund 1 = LOW risk (0%)   → small profit, safe
+#  Fund 2 = MED risk (10%)  → medium profit
+#  Fund 3 = HIGH risk (50%) → big profit, aggressive
+# ═══════════════════════════════════════════════════════════════
+
+FUND_LEVELS = [
+    # (level, fund1_bet, fund2_bet, fund3_bet)
+    (1,   1,   1,   1),
+    (2,   3,   3,   3),
+    (3,   7,   8,   6),
+    (4,  17,  20,  15),
+    (5,  45,  40,  35),
+    (6,  85,  80,  70),
+    (7, 190, 170, 155),
+    (8, 400, 370, 330),
+    (9, 850, 780, 700),
+    (10,1800,1650,1500),
+]
+
 
 def img(name):
     p = IMAGES_DIR / name
@@ -20,24 +41,54 @@ def img(name):
 def format_profit(state, status="RUNNING", platform="JAI CLUB"):
     profit = state.get("profit", 0)
     start = state.get("start_balance", 0)
-    pct = ((profit / start) * 100) if start > 0 else 0
-    target = state.get("profit_target", 20)
-    tgt = f"{target}% OK" if pct >= target else f"{target}%"
+    target_amt = state.get("target_amount", 0)
     sign = "+" if profit >= 0 else ""
+    levels_info = state.get("levels", [1, 1, 1])
+
     return box(f"💰 {platform}",
         f"<b>Status:</b> {status}\n\n"
         f"<b>Profit:</b> <code>{sign}{profit:.2f}</code>\n"
-        f"<b>%:</b> <code>{sign}{pct:.1f}%</code>\n"
-        f"<b>Target:</b> <code>{tgt}</code>\n\n"
+        f"<b>Target:</b> <code>{target_amt}</code> | "
+        f"<b>{'✅ DONE' if profit >= target_amt and target_amt > 0 else '⏳ Running'}</code>\n\n"
+        f"━━━ <b>FUND LEVELS</b> ━━━\n"
+        f"🟢 <b>F1 LOW:</b>  Lv.<code>{levels_info[0]}</code> | "
+        f"Bet: <code>{_get_fund_bet(levels_info[0], 1)}</code>\n"
+        f"🟡 <b>F2 MED:</b>  Lv.<code>{levels_info[1]}</code> | "
+        f"Bet: <code>{_get_fund_bet(levels_info[1], 2)}</code>\n"
+        f"🔴 <b>F3 HIGH:</b> Lv.<code>{levels_info[2]}</code> | "
+        f"Bet: <code>{_get_fund_bet(levels_info[2], 3)}</code>\n\n"
         f"<b>Won:</b> <code>{state.get('total_won',0):.2f}</code> | "
         f"<b>Lost:</b> <code>{state.get('total_lost',0):.2f}</code>\n"
-        f"<b>Wins:</b> <code>{state.get('wins',0)}</code> | "
-        f"<b>Losses:</b> <code>{state.get('losses',0)}</code>\n"
-        f"<b>DW:</b> <code>{state.get('double_win',0)}</code> | "
-        f"<b>DL:</b> <code>{state.get('double_loss',0)}</code>\n"
-        f"<b>Level:</b> <code>{state.get('level',0)}</code>\n\n"
+        f"<b>Rounds:</b> <code>{state.get('rounds',0)}</code>\n\n"
         f"<i>{time.strftime('%H:%M:%S')}</i>")
 
+
+def _get_fund_bet(level, fund_num):
+    idx = min(level - 1, len(FUND_LEVELS) - 1)
+    if idx < 0:
+        idx = 0
+    row = FUND_LEVELS[idx]
+    return row[fund_num]
+
+
+def _make_3fund_levels(balance):
+    return [
+        {"level": 1, "f1": 1, "f2": 1, "f3": 1},
+        {"level": 2, "f1": 3, "f2": 3, "f3": 3},
+        {"level": 3, "f1": 7, "f2": 8, "f3": 6},
+        {"level": 4, "f1": 17, "f2": 20, "f3": 15},
+        {"level": 5, "f1": 45, "f2": 40, "f3": 35},
+        {"level": 6, "f1": 85, "f2": 80, "f3": 70},
+        {"level": 7, "f1": 190, "f2": 170, "f3": 155},
+        {"level": 8, "f1": 400, "f2": 370, "f3": 330},
+        {"level": 9, "f1": 850, "f2": 780, "f3": 700},
+        {"level": 10, "f1": 1800, "f2": 1650, "f3": 1500},
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════
+#  CALLBACKS
+# ═══════════════════════════════════════════════════════════════
 
 @router.callback_query(F.data == "stop_bot")
 async def cb_stop_bot(callback: CallbackQuery):
@@ -54,22 +105,11 @@ async def cb_stop_bot(callback: CallbackQuery):
 @router.callback_query(F.data == "confirm_stop")
 async def cb_confirm_stop(callback: CallbackQuery):
     user_id = callback.from_user.id
-
-    # Stop the bot loop
     if user_id in _active_bots:
         _active_bots[user_id]["running"] = False
-
-    # Wipe ALL login data from RAM
     _active_bots.pop(user_id, None)
     _profit_messages.pop(user_id, None)
-
-    # Wipe ALL login data from DB - fresh start next time
-    await update_user(user_id, {
-        "logged_in": 0,
-        "login_user": "",
-        "start_balance": 0,
-    })
-
+    await update_user(user_id, {"logged_in": 0, "login_user": "", "start_balance": 0})
     try:
         await callback.message.delete()
     except Exception:
@@ -78,7 +118,7 @@ async def cb_confirm_stop(callback: CallbackQuery):
     await bot.send_message(callback.message.chat.id,
         box("🛑 STOPPED", "All data cleared.\nUse /start for fresh login.") + footer(),
         reply_markup=main_menu_kb())
-    await callback.answer("🛑 Stopped! All data cleared.")
+    await callback.answer("🛑 Stopped!")
 
 
 @router.callback_query(F.data == "cancel_stop")
@@ -102,11 +142,17 @@ async def cb_status(callback: CallbackQuery):
     pn = {"jai": "JAI CLUB", "bdgwin": "BDGWIN", "51": "51GAME"}.get(platform, "JAI CLUB")
     st = "Running" if bd.get("running") else "Stopped"
     pts = user.get("points", 0)
+    lvls = bd.get("levels", [1, 1, 1])
+    target_amt = bd.get("target_amount", 0)
+    profit = bd.get("profit", 0)
     txt = box("📊 STATUS",
         f"<b>Platform:</b> {pn}\n<b>Status:</b> {st}\n"
-        f"<b>Balance:</b> <code>{bd.get('balance',0):.2f}</code>\n"
-        f"<b>Profit:</b> <code>{bd.get('profit',0):.2f}</code>\n"
-        f"<b>Level:</b> <code>{bd.get('level',0)}</code>\n"
+        f"<b>Balance:</b> <code>{bd.get('start_balance',0)}</code>\n"
+        f"<b>Profit:</b> <code>{profit:.2f}</code>\n"
+        f"<b>Target:</b> <code>{target_amt}</code>\n\n"
+        f"🟢 F1: Lv.<code>{lvls[0]}</code> | "
+        f"🟡 F2: Lv.<code>{lvls[1]}</code> | "
+        f"🔴 F3: Lv.<code>{lvls[2]}</code>\n\n"
         f"<b>Points:</b> <code>{pts}</code>") + footer()
     try:
         await callback.message.delete()
@@ -122,19 +168,18 @@ async def cb_profit(callback: CallbackQuery):
     user_id = callback.from_user.id
     bd = _active_bots.get(user_id, {})
     start = bd.get("start_balance", 0)
-    curr = bd.get("balance", 0)
-    profit = curr - start
-    pct = ((profit / start) * 100) if start > 0 else 0
+    profit = bd.get("profit", 0)
+    target_amt = bd.get("target_amount", 0)
     user = await get_user(user_id)
-    target = user.get("profit_target", 20)
-    tgt = "REACHED!" if pct >= target else f"{target}%"
+    lvls = bd.get("levels", [1, 1, 1])
     txt = box("💰 PROFIT",
         f"<b>Profit:</b> <code>{profit:.2f}</code>\n"
-        f"<b>%:</b> <code>{pct:.1f}%</code>\n"
-        f"<b>Target:</b> <code>{tgt}</code>\n\n"
-        f"<b>Wins:</b> <code>{bd.get('double_win',0)}</code> | "
-        f"<b>Losses:</b> <code>{bd.get('double_loss',0)}</code>\n"
-        f"<b>Level:</b> <code>{bd.get('level',0)}</code>") + footer()
+        f"<b>Target:</b> <code>{target_amt}</code> | "
+        f"<b>{'✅ DONE' if profit >= target_amt and target_amt > 0 else '⏳'}</code>\n\n"
+        f"🟢 F1 Lv.<code>{lvls[0]}</code> Bet:<code>{_get_fund_bet(lvls[0],1)}</code>\n"
+        f"🟡 F2 Lv.<code>{lvls[1]}</code> Bet:<code>{_get_fund_bet(lvls[1],2)}</code>\n"
+        f"🔴 F3 Lv.<code>{lvls[2]}</code> Bet:<code>{_get_fund_bet(lvls[2],3)}</code>\n\n"
+        f"<b>Rounds:</b> <code>{bd.get('rounds',0)}</code>") + footer()
     try:
         await callback.message.delete()
     except Exception:
@@ -199,20 +244,21 @@ async def cb_premium(callback: CallbackQuery):
     await callback.answer()
 
 
+# ═══════════════════════════════════════════════════════════════
+#  MAIN BETTING ENGINE - 3 FUND DUAL BET
+# ═══════════════════════════════════════════════════════════════
+
 async def start_betting(user_id, chat_id, user_data):
     from bot.bot_instance import _active_bots as ab, bot
 
-    # Read ALL from RAM - never from DB
     session = ab.get(user_id, {})
     platform = user_data.get("platform", "jai")
     username = session.get("login_user", "")
     password = session.get("login_pass", "")
     start_balance = session.get("start_balance", 0)
+    target_amount = session.get("target_amount", 0)
 
     game = user_data.get("game", "WinGo_30S")
-    total_bet = user_data.get("total_bet", 2)
-    multiplier = user_data.get("multiplier", 2.0)
-    profit_target = user_data.get("profit_target", 20)
 
     if not username or not password or not start_balance:
         await bot.send_message(chat_id,
@@ -222,7 +268,8 @@ async def start_betting(user_id, chat_id, user_data):
     pn = {"jai": "JAI CLUB", "bdgwin": "BDGWIN", "51": "51GAME"}.get(platform, "JAI CLUB")
 
     msg = await bot.send_message(chat_id,
-        box("⏳ LOGGING IN...", f"<b>{pn}</b>") + footer(), reply_markup=main_menu_kb())
+        box("⏳ LOGGING IN...", f"<b>{pn}</b>\nBalance: {start_balance}\nTarget: ₹{target_amount}") + footer(),
+        reply_markup=main_menu_kb())
     _profit_messages[user_id] = msg.message_id
 
     try:
@@ -234,7 +281,6 @@ async def start_betting(user_id, chat_id, user_data):
                     text=box("❌ FAILED", str(checker.message)[:100]) + footer())
                 return
             checker.fetch_ar_token(game)
-            levels = _make_levels(start_balance, total_bet, multiplier)
         elif platform == "51":
             from bot.services.checker_51 import Game51AccountChecker
             checker = Game51AccountChecker(username, password)
@@ -242,33 +288,36 @@ async def start_betting(user_id, chat_id, user_data):
                 await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
                     text=box("❌ FAILED", str(checker.message)[:100]) + footer())
                 return
-            levels = _make_levels(start_balance, total_bet, multiplier)
         else:
             from bot.services.checker_jai import AccountChecker, AutoBetEngine, make_levels
-            engine = AutoBetEngine(username, password, game, total_bet, multiplier, 55)
+            engine = AutoBetEngine(username, password, game, 2, 2.0, 55)
             engine.checker.lottery_api_base_url = "https://h5.ar-lottery06.com"
             engine.checker.lottery_draw_base_url = "https://draw.ar-lottery06.com"
             engine.login()
             engine.checker.fetch_ar_token(game)
-            engine.start_balance = start_balance
-            engine.current_balance = start_balance
-            levels = make_levels(start_balance, total_bet, multiplier)
             checker = engine.checker
     except Exception as e:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
             text=box("❌ LOGIN FAILED", str(e)[:100]) + footer())
         return
 
-    # Wipe login creds from RAM after successful login
     if user_id in ab:
         ab[user_id].pop("login_user", None)
         ab[user_id].pop("login_pass", None)
 
+    # 3-FUND STATE: each fund has independent level
     bot_state = {
-        "running": True, "start_balance": start_balance, "balance": start_balance,
-        "profit": 0, "total_won": 0, "total_lost": 0, "wins": 0, "losses": 0,
-        "double_win": 0, "double_loss": 0, "level": 0, "pending": None,
-        "last_seen_period": None, "target_hit": False, "profit_target": profit_target,
+        "running": True,
+        "start_balance": start_balance,
+        "balance": start_balance,
+        "target_amount": target_amount,
+        "profit": 0,
+        "total_won": 0,
+        "total_lost": 0,
+        "rounds": 0,
+        "levels": [1, 1, 1],  # [f1_level, f2_level, f3_level]
+        "pending": None,
+        "last_seen_period": None,
     }
     _active_bots[user_id] = bot_state
     await _update_profit(user_id, chat_id, bot_state, "RUNNING", pn)
@@ -277,6 +326,18 @@ async def start_betting(user_id, chat_id, user_data):
         try:
             user = await get_user(user_id)
             if user.get("banned"):
+                break
+
+            # Check target reached
+            if target_amount > 0 and bot_state["profit"] >= target_amount:
+                try:
+                    await bot.send_message(chat_id,
+                        box("🎉 TARGET REACHED!",
+                            f"<b>Profit:</b> +{bot_state['profit']:.2f}\n"
+                            f"<b>Target:</b> ₹{target_amount}\n\nBot auto-stopping...") + footer())
+                except Exception:
+                    pass
+                bot_state["running"] = False
                 break
 
             if platform == "bdgwin":
@@ -294,100 +355,157 @@ async def start_betting(user_id, chat_id, user_data):
             latest = str(history[0].get("issueNumber", ""))
             nums = [int(x.get("number", 0)) for x in history[:6]]
 
+            # ── CHECK PENDING RESULT ──
             if bot_state["pending"]:
                 pending = bot_state["pending"]
                 if str(pending["period"]) == latest:
                     actual_num = nums[0]
                     actual_bs = "BIG" if actual_num >= 5 else "SMALL"
-                    actual_color = "GREEN" if actual_num in {1,3,5,7,9} else "RED"
-                    bs_match = pending["bs_prediction"] == actual_bs
-                    color_match = pending["color_prediction"] == actual_color
+                    actual_color = "GREEN" if actual_num in {1, 3, 5, 7, 9} else "RED"
 
-                    if bs_match and color_match:
-                        result = "DOUBLE WIN"
-                        bot_state["double_win"] += 1
-                        bot_state["wins"] += 1
-                        bot_state["level"] = 0
-                        bot_state["total_won"] += pending["total_bet"] * 0.98
-                    elif bs_match or color_match:
-                        result = "BREAK EVEN"
+                    f1_won = pending["f1_bs"] == actual_bs and pending["f1_co"] == actual_color
+                    f2_won = pending["f2_bs"] == actual_bs and pending["f2_co"] == actual_color
+                    f3_won = pending["f3_bs"] == actual_bs and pending["f3_co"] == actual_color
+
+                    f1_bs_ok = pending["f1_bs"] == actual_bs
+                    f1_co_ok = pending["f1_co"] == actual_color
+                    f2_bs_ok = pending["f2_bs"] == actual_bs
+                    f2_co_ok = pending["f2_co"] == actual_color
+                    f3_bs_ok = pending["f3_bs"] == actual_bs
+                    f3_co_ok = pending["f3_co"] == actual_color
+
+                    # Calculate per-fund results
+                    f1_bet = pending["f1_bet"]
+                    f2_bet = pending["f2_bet"]
+                    f3_bet = pending["f3_bet"]
+
+                    # Fund 1 result
+                    if f1_won:
+                        f1_result = "WIN"
+                        bot_state["total_won"] += f1_bet * 0.98
+                        bot_state["levels"][0] = 1  # reset to level 1
+                    elif f1_bs_ok or f1_co_ok:
+                        f1_result = "EVEN"
                     else:
-                        result = "DOUBLE LOSS"
-                        bot_state["double_loss"] += 1
-                        bot_state["losses"] += 1
-                        bot_state["level"] += 1
-                        bot_state["total_lost"] += pending["total_bet"]
-                        if bot_state["level"] >= len(levels):
-                            bot_state["running"] = False
-                            break
+                        f1_result = "LOSS"
+                        bot_state["total_lost"] += f1_bet
+                        bot_state["levels"][0] = min(bot_state["levels"][0] + 1, len(FUND_LEVELS))
+
+                    # Fund 2 result
+                    if f2_won:
+                        f2_result = "WIN"
+                        bot_state["total_won"] += f2_bet * 0.98
+                        bot_state["levels"][1] = 1
+                    elif f2_bs_ok or f2_co_ok:
+                        f2_result = "EVEN"
+                    else:
+                        f2_result = "LOSS"
+                        bot_state["total_lost"] += f2_bet
+                        bot_state["levels"][1] = min(bot_state["levels"][1] + 1, len(FUND_LEVELS))
+
+                    # Fund 3 result
+                    if f3_won:
+                        f3_result = "WIN"
+                        bot_state["total_won"] += f3_bet * 0.98
+                        bot_state["levels"][2] = 1
+                    elif f3_bs_ok or f3_co_ok:
+                        f3_result = "EVEN"
+                    else:
+                        f3_result = "LOSS"
+                        bot_state["total_lost"] += f3_bet
+                        bot_state["levels"][2] = min(bot_state["levels"][2] + 1, len(FUND_LEVELS))
 
                     bot_state["pending"] = None
                     bot_state["profit"] = bot_state["total_won"] - bot_state["total_lost"]
                     bot_state["balance"] = bot_state["start_balance"] + bot_state["profit"]
+                    bot_state["rounds"] += 1
 
-                    pct = ((bot_state["profit"] / bot_state["start_balance"]) * 100) if bot_state["start_balance"] > 0 else 0
-                    if pct >= profit_target and not bot_state["target_hit"]:
-                        bot_state["target_hit"] = True
-                        try:
-                            await bot.send_message(chat_id,
-                                box("🎉 TARGET!", f"<b>Profit:</b> +{bot_state['profit']:.2f} ({pct:.1f}%)") + footer())
-                        except Exception:
-                            pass
+                    total_bet = f1_bet + f2_bet + f3_bet
+                    result_summary = f"F1:{f1_result} F2:{f2_result} F3:{f3_result}"
 
-                    await update_stats(user_id, platform, pending.get("total_bet", 0) if "WIN" in result else 0,
-                                       pending.get("total_bet", 0) if "LOSS" in result else 0, result)
-                    await add_history(user_id, platform, latest, pending.get("bs_prediction",""),
-                                      pending.get("color_prediction",""), actual_num, actual_bs, actual_color,
-                                      pending.get("total_bet", 0), result, bot_state["profit"], bot_state["level"])
-                    await _update_profit(user_id, chat_id, bot_state, result, pn)
+                    await update_stats(user_id, platform,
+                        total_bet if "WIN" in (f1_result + f2_result + f3_result) else 0,
+                        total_bet if "LOSS" in (f1_result + f2_result + f3_result) else 0,
+                        result_summary)
+                    await add_history(user_id, platform, latest,
+                        f"F1:{pending['f1_bs']}/{pending['f1_co']}",
+                        f"F2:{pending['f2_bs']}/{pending['f2_co']}",
+                        actual_num, actual_bs, actual_color,
+                        total_bet, result_summary, bot_state["profit"],
+                        max(bot_state["levels"]))
+                    await _update_profit(user_id, chat_id, bot_state, result_summary, pn)
 
                 await asyncio.sleep(1)
                 continue
 
+            # ── WAIT FOR NEW PERIOD ──
             if latest == bot_state["last_seen_period"]:
                 await asyncio.sleep(1)
                 continue
             bot_state["last_seen_period"] = latest
 
+            # ── PREDICT ──
             pattern_bs = [("B" if n >= 5 else "S") for n in reversed(nums)]
-            pattern_co = [("G" if n in {1,3,5,7,9} else "R") for n in reversed(nums)]
+            pattern_co = [("G" if n in {1, 3, 5, 7, 9} else "R") for n in reversed(nums)]
 
             from bot.services.checker_bdgwin import predict_bs as bs_pred_fn, predict_color as co_pred_fn
             bs_pred, _ = bs_pred_fn(pattern_bs)
             co_pred, _ = co_pred_fn(pattern_co)
 
-            if bot_state["level"] >= len(levels):
-                bot_state["running"] = False
-                break
+            # ── GET BET AMOUNTS FOR EACH FUND ──
+            f1_lv = min(bot_state["levels"][0] - 1, len(FUND_LEVELS) - 1)
+            f2_lv = min(bot_state["levels"][1] - 1, len(FUND_LEVELS) - 1)
+            f3_lv = min(bot_state["levels"][2] - 1, len(FUND_LEVELS) - 1)
 
-            lv = levels[bot_state["level"]]
+            f1_bet = FUND_LEVELS[f1_lv][1]  # fund1 bet
+            f2_bet = FUND_LEVELS[f2_lv][2]  # fund2 bet
+            f3_bet = FUND_LEVELS[f3_lv][3]  # fund3 bet
+
+            total_bs_bet = f1_bet + f2_bet + f3_bet
+            total_co_bet = f1_bet + f2_bet + f3_bet
+
+            # ── PLACE 3-FUND DUAL BET ──
             try:
                 if platform == "bdgwin":
                     open_issue = checker.fetch_open_issue(game)
                     if open_issue:
-                        checker.place_dual_bet(open_issue, game, bs_pred, co_pred, lv["bs_bet"], lv["color_bet"])
-                        bot_state["pending"] = {"period": open_issue, "bs_prediction": bs_pred,
-                                                 "color_prediction": co_pred, "total_bet": lv["total_bet"],
-                                                 "level": lv["level"]}
+                        checker.place_dual_bet(open_issue, game, bs_pred, co_pred,
+                                               total_bs_bet, total_co_bet)
+                        bot_state["pending"] = {
+                            "period": open_issue,
+                            "f1_bs": bs_pred, "f1_co": co_pred, "f1_bet": f1_bet,
+                            "f2_bs": bs_pred, "f2_co": co_pred, "f2_bet": f2_bet,
+                            "f3_bs": bs_pred, "f3_co": co_pred, "f3_bet": f3_bet,
+                        }
                 elif platform == "51":
                     type_id = user_data.get("game51_type_id", 30)
                     open_issue = checker.fetch_open_issue(type_id)
                     if open_issue:
                         bs_content = f"BigSmall_{bs_pred.capitalize()}"
                         color_content = f"Color_{co_pred.capitalize()}"
-                        checker.place_dual_bet(open_issue, type_id, lv["bs_bet"], lv["color_bet"], bs_content, color_content)
-                        bot_state["pending"] = {"period": open_issue, "bs_prediction": bs_pred,
-                                                 "color_prediction": co_pred, "total_bet": lv["total_bet"],
-                                                 "level": lv["level"]}
+                        checker.place_dual_bet(open_issue, type_id,
+                                               total_bs_bet, total_co_bet,
+                                               bs_content, color_content)
+                        bot_state["pending"] = {
+                            "period": open_issue,
+                            "f1_bs": bs_pred, "f1_co": co_pred, "f1_bet": f1_bet,
+                            "f2_bs": bs_pred, "f2_co": co_pred, "f2_bet": f2_bet,
+                            "f3_bs": bs_pred, "f3_co": co_pred, "f3_bet": f3_bet,
+                        }
                 else:
                     open_issue = checker.fetch_open_issue()
                     if open_issue:
-                        checker.place_wingo_bet(open_issue, lv["bs_bet"], 1, f"BigSmall_{bs_pred.capitalize()}", game)
-                        checker.place_wingo_bet(open_issue, lv["color_bet"], 1, f"Color_{co_pred.capitalize()}", game)
-                        bot_state["pending"] = {"period": open_issue, "bs_prediction": bs_pred,
-                                                 "color_prediction": co_pred, "total_bet": lv["total_bet"],
-                                                 "level": lv["level"]}
-                await _update_profit(user_id, chat_id, bot_state, "WAITING", pn)
+                        checker.place_wingo_bet(open_issue, total_bs_bet, 1,
+                                                f"BigSmall_{bs_pred.capitalize()}", game)
+                        checker.place_wingo_bet(open_issue, total_co_bet, 1,
+                                                f"Color_{co_pred.capitalize()}", game)
+                        bot_state["pending"] = {
+                            "period": open_issue,
+                            "f1_bs": bs_pred, "f1_co": co_pred, "f1_bet": f1_bet,
+                            "f2_bs": bs_pred, "f2_co": co_pred, "f2_bet": f2_bet,
+                            "f3_bs": bs_pred, "f3_co": co_pred, "f3_bet": f3_bet,
+                        }
+                await _update_profit(user_id, chat_id, bot_state, "BET PLACED", pn)
             except Exception as e:
                 import logging
                 logging.error(f"Bet failed: {e}")
@@ -398,7 +516,7 @@ async def start_betting(user_id, chat_id, user_data):
             logging.error(f"Betting error: {e}")
             await asyncio.sleep(3)
 
-    # Bot loop ended - wipe everything
+    # ── SESSION ENDED ──
     if user_id in _profit_messages:
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=_profit_messages[user_id],
@@ -413,19 +531,15 @@ async def start_betting(user_id, chat_id, user_data):
                 pass
             _profit_messages.pop(user_id, None)
 
-    # Wipe ALL from RAM
     _active_bots.pop(user_id, None)
-
-    # Wipe ALL from DB
-    await update_user(user_id, {
-        "logged_in": 0,
-        "login_user": "",
-        "start_balance": 0,
-    })
+    await update_user(user_id, {"logged_in": 0, "login_user": "", "start_balance": 0})
 
     try:
         await bot.send_message(chat_id,
-            box("💰 SESSION ENDED", "All data cleared.\nUse /start for fresh login.") + footer(),
+            box("💰 SESSION ENDED",
+                f"Profit: <code>{bot_state.get('profit',0):.2f}</code>\n"
+                f"Rounds: <code>{bot_state.get('rounds',0)}</code>\n\n"
+                "All data cleared.\nUse /start for fresh login.") + footer(),
             reply_markup=referral_only_kb())
     except Exception:
         pass
@@ -441,26 +555,3 @@ async def _update_profit(user_id, chat_id, state, status, platform):
             text=format_profit(state, status, platform) + footer(), reply_markup=main_menu_kb())
     except Exception:
         pass
-
-
-def _make_levels(balance, start_total, multiplier):
-    import math
-    levels = []
-    per_market = max(1, math.ceil(start_total / 2))
-    risk = 0
-    lvl = 1
-    while True:
-        total = per_market * 2
-        if risk + total > balance:
-            break
-        risk += total
-        levels.append({"level": lvl, "color_bet": per_market, "bs_bet": per_market,
-                        "total_bet": total, "cumulative_risk": risk})
-        nxt = math.ceil(per_market * multiplier)
-        if nxt <= per_market:
-            nxt = per_market + 1
-        per_market = nxt
-        lvl += 1
-        if lvl > 50:
-            break
-    return levels
