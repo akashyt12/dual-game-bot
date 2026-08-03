@@ -222,6 +222,17 @@ STATE_HANDLERS = {
 }
 
 
+@router.message(F.text)
+async def catch_all_text(message: Message):
+    user_id = message.from_user.id
+    state = _user_states.get(user_id)
+    if state and state in STATE_HANDLERS:
+        text = (message.text or "").strip()
+        if text.startswith("/"):
+            return
+        await STATE_HANDLERS[state](message, user_id, text)
+
+
 def get_state(user_id: int):
     return _user_states.get(user_id)
 
