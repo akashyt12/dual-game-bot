@@ -1516,6 +1516,27 @@ async def handle_callbacks(callback: CallbackQuery):
         await callback.answer()
         return
 
+    if data == "retry_login":
+        user_data = get_user(user_id)
+        platform = user_data.get("platform", "jai")
+        _user_states[user_id] = "login"
+        if platform == "bdgwin":
+            title = "\U0001F4B0 BDGWIN LOGIN"
+            body = "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>"
+        elif platform == "jai":
+            title = "\U0001F511 JAI CLUB LOGIN"
+            body = "Enter <b>username</b> and <b>password</b>:\n\n<code>username\npassword</code>"
+        else:
+            title = "\U0001F511 51GAME LOGIN"
+            body = "Enter <b>phone</b> and <b>password</b>:\n\n<code>phone\npassword</code>"
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await send_or_edit(callback.message.chat.id, user_id, text=box(title, body) + footer())
+        await callback.answer()
+        return
+
     if data == "switch_platform":
         try:
             await callback.message.delete()
@@ -2066,8 +2087,14 @@ async def run_betting_jai(user_id, chat_id, user_data):
         engine.login()
         engine.checker.fetch_ar_token(game)
     except Exception as e:
+        retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="\U0001F504 TRY AGAIN", callback_data="retry_login")],
+            [InlineKeyboardButton(text="\u25C0 MAIN MENU", callback_data="back_menu")],
+        ])
         try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id, text=box("\u274C FAILED", safe_str(e, 100)) + footer())
+            await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
+                text=box("\u274C LOGIN FAILED", safe_str(e, 100) + "\n\nClick <b>TRY AGAIN</b> to re-enter credentials.") + footer(),
+                reply_markup=retry_kb)
         except Exception:
             pass
         return
@@ -2225,16 +2252,26 @@ async def run_betting_51(user_id, chat_id, user_data):
     checker = Game51AccountChecker(username, password)
     try:
         if not checker.perform_login():
+            retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="\U0001F504 TRY AGAIN", callback_data="retry_login")],
+                [InlineKeyboardButton(text="\u25C0 MAIN MENU", callback_data="back_menu")],
+            ])
             try:
                 await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                    text=box("\u274C FAILED", safe_str(checker.message, 100)) + footer())
+                    text=box("\u274C LOGIN FAILED", safe_str(checker.message, 100) + "\n\nClick <b>TRY AGAIN</b> to re-enter credentials.") + footer(),
+                    reply_markup=retry_kb)
             except Exception:
                 pass
             return
     except Exception as e:
+        retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="\U0001F504 TRY AGAIN", callback_data="retry_login")],
+            [InlineKeyboardButton(text="\u25C0 MAIN MENU", callback_data="back_menu")],
+        ])
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                text=box("\u274C FAILED", safe_str(e, 100)) + footer())
+                text=box("\u274C LOGIN FAILED", safe_str(e, 100) + "\n\nClick <b>TRY AGAIN</b> to re-enter credentials.") + footer(),
+                reply_markup=retry_kb)
         except Exception:
             pass
         return
@@ -2408,16 +2445,26 @@ async def run_betting_bdgwin(user_id, chat_id, user_data):
     checker = BDGWinAccountChecker(username, password)
     try:
         if not checker.perform_login():
+            retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="\U0001F504 TRY AGAIN", callback_data="retry_login")],
+                [InlineKeyboardButton(text="\u25C0 MAIN MENU", callback_data="back_menu")],
+            ])
             try:
                 await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                    text=box("\u274C FAILED", safe_str(checker.message, 100)) + footer())
+                    text=box("\u274C LOGIN FAILED", safe_str(checker.message, 100) + "\n\nClick <b>TRY AGAIN</b> to re-enter credentials.") + footer(),
+                    reply_markup=retry_kb)
             except Exception:
                 pass
             return
     except Exception as e:
+        retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="\U0001F504 TRY AGAIN", callback_data="retry_login")],
+            [InlineKeyboardButton(text="\u25C0 MAIN MENU", callback_data="back_menu")],
+        ])
         try:
             await bot.edit_message_text(chat_id=chat_id, message_id=msg.message_id,
-                text=box("\u274C FAILED", safe_str(e, 100)) + footer())
+                text=box("\u274C LOGIN FAILED", safe_str(e, 100) + "\n\nClick <b>TRY AGAIN</b> to re-enter credentials.") + footer(),
+                reply_markup=retry_kb)
         except Exception:
             pass
         return
